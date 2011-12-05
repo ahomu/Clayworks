@@ -32,7 +32,6 @@
  *  Google Chrome    newest
  *  Opera            newest
  *
- * @see ナビ子記法 http://handsout.jp/slide/1883
  */
 var Clay;
 Clay || (function(win, doc, loc) {
@@ -41,8 +40,10 @@ Clay || (function(win, doc, loc) {
 
     /**
      * Clayコアのマッピング
+     *
+     * @see ナビ子記法 http://handsout.jp/slide/1883
      */
-    // *1 : Array#elに対応
+    // *1 : Array#elとClaylumpのショートハンドに対応
     // *2 : 追加要素にHTMLStringを使用可
     Clay = shake(ClaylumpFactory, {
         ready    : ReadyHandler,
@@ -87,12 +88,12 @@ Clay || (function(win, doc, loc) {
             clone   : ElementClone      // *1
         }),
         Find    : {
-            parent  : FindParent,
-            children: FindChildren,
-            siblings: FindSiblings,
-            closest : FindClosest,
-            next    : FindNext,
-            prev    : FindPrev
+            parent  : FindParent,       // *1
+            children: FindChildren,     // *1
+            siblings: FindSiblings,     // *1
+            closest : FindClosest,      // *1
+            next    : FindNext,         // *1
+            prev    : FindPrev          // *1
         },
         Http    : shake(NetHttp,{
             get     : NetHttpGet,
@@ -118,7 +119,7 @@ Clay || (function(win, doc, loc) {
      *  Object.prototypeは拡張しない
      *  Arrayをfor inループで探索するならhasOwnPropertyを使うこと
      */
-    // *1 : JavaScript1.6
+    // *1 : JavaScript 1.6
     fill(String.prototype, {
         trim      : StringTrim,
         trimLeft  : StringTrimLeft,
@@ -639,10 +640,37 @@ Clay || (function(win, doc, loc) {
 
     // ショートハンドを合成
     shake(Claylump.prototype, {
+        on      : ClayFinkelize(EventOn),
+        off     : ClayFinkelize(EventOff),
+        emit    : ClayFinkelize(EventEmit),
+
         clazz   : ClayFinkelize(ElementClass),
         css     : ClayFinkelize(ElementStyle),
         attr    : ClayFinkelize(ElementAttribute),
-        data    : ClayFinkelize(ElementDataset)
+        data    : ClayFinkelize(ElementDataset),
+        html    : ClayFinkelize(ElementHTML),
+        text    : ClayFinkelize(ElementText),
+
+        last    : ClayFinkelize(ElementInsLast),
+        first   : ClayFinkelize(ElementInsFirst),
+        before  : ClayFinkelize(ElementInsBefore),
+        after   : ClayFinkelize(ElementInsAfter),
+        insert  : ClayFinkelize(ElementInsert),
+        replace : ClayFinkelize(ElementReplace),
+        wrap    : ClayFinkelize(ElementWrap),
+
+        empty   : ClayFinkelize(ElementEmpty),
+        remove  : ClayFinkelize(ElementRemove),
+
+        swap    : ClayFinkelize(ElementSwap),
+        clone   : ClayFinkelize(ElementClone),
+
+        parent  : ClayFinkelize(FindParent),
+        children: ClayFinkelize(FindChildren),
+        siblings: ClayFinkelize(FindSiblings),
+        closest : ClayFinkelize(FindClosest),
+        next    : ClayFinkelize(FindNext),
+        prev    : ClayFinkelize(FindPrev)
     });
 
     /**
@@ -1483,7 +1511,7 @@ Clay || (function(win, doc, loc) {
      *
      * @param {Node}   elm
      * @param {String} oClazz 1byte目が制御子+2byte目以降がクラス名
-     * @return {void|Boolean} 要素のクラス名（今回操作対象でなかったクラスを含む）
+     * @return {Boolean} 要素のクラス名（今回操作対象でなかったクラスを含む）
      */
     function ElementClass(elm, oClazz) { // operator(str1)+className(str*)
         var opr = oClazz.substr(0, 1),
@@ -1518,7 +1546,7 @@ Clay || (function(win, doc, loc) {
      * @param {Node}                elm
      * @param {String|Object|Array} key
      * @param {String}              [val]
-     * @return {Array|Boolean|String|Object} Iterate|Set|SingleGet|ServalGet
+     * @return {String|Object}
      */
     function ElementStyle(elm, key, val) {
 
@@ -1529,7 +1557,6 @@ Clay || (function(win, doc, loc) {
         if (arguments.length === 3) {
             // set property
             elm.style[key] = val;
-            return true;
         }
         else if (arguments.length === 2) {
             var k;
@@ -1543,7 +1570,6 @@ Clay || (function(win, doc, loc) {
                     for (k in key) {
                         elm.style[k] = key[k];
                     }
-                    return true;
                 break;
                 // get properties
                 case 'array':
@@ -1624,7 +1650,7 @@ Clay || (function(win, doc, loc) {
     /**
      * 指定した要素のinnerHTMLをgetまたはsetする
      * get時にFx3.6向けの処理が挟んでいる
-     * http://stackoverflow.com/questions/3736474/firefox-add-a-xmlns-http-www-w3-org-1999-xhtml
+     * @see http://stackoverflow.com/questions/3736474/firefox-add-a-xmlns-http-www-w3-org-1999-xhtml
      *
      * @param {Node}   elm
      * @param {String} html
