@@ -39,11 +39,11 @@ Clay || (function(win, doc, loc) {
 
     "use strict";
 
-    // *1 : ElementItelatorに対応
-    // *2 : setter用途のみElementItelatorに対応
-    // *3 : 追加要素にHTMLString使用可
-
-    // ElementSelectorの循環参照
+    /**
+     * Clayコアのマッピング
+     */
+    // *1 : Array#elに対応
+    // *2 : 追加要素にHTMLStringを使用可
     Clay = shake(ClaylumpFactory, {
         ready    : ReadyHandler,
         jsload   : ScriptLoader,
@@ -65,28 +65,26 @@ Clay || (function(win, doc, loc) {
             sub     : EventSubscribe
         }),
         Elem     : shake(ElementSelector,{
-            clazz   : ElementClass,     // *2
-            css     : ElementStyle,     // *2
-            attr    : ElementAttribute, // *2
-            data    : ElementDataset,   // *2
-            html    : ElementHTML,
-            text    : ElementText,
+            clazz   : ElementClass,     // *1
+            css     : ElementStyle,     // *1
+            attr    : ElementAttribute, // *1
+            data    : ElementDataset,   // *1
+            html    : ElementHTML,      // *1
+            text    : ElementText,      // *1
 
-            last    : ElementInsLast,   // *3
-            first   : ElementInsFirst,  // *3
-            before  : ElementInsBefore, // *3
-            after   : ElementInsAfter,  // *3
-            insert  : ElementInsert,    // *3
-            replace : ElementReplace,   // *3
-            wrap    : ElementWrap,      // *3
+            last    : ElementInsLast,   // *1 *2
+            first   : ElementInsFirst,  // *1 *2
+            before  : ElementInsBefore, // *1 *2
+            after   : ElementInsAfter,  // *1 *2
+            insert  : ElementInsert,    // *1 *2
+            replace : ElementReplace,   // *1 *2
+            wrap    : ElementWrap,      // *1 *2
 
             empty   : ElementEmpty,     // *1
             remove  : ElementRemove,    // *1
 
-            swap    : ElementSwap,
-            clone   : ElementClone,
-
-            str2dom : ElementFromString
+            swap    : ElementSwap,      // *1
+            clone   : ElementClone      // *1
         }),
         Find    : {
             parent  : FindParent,
@@ -97,12 +95,12 @@ Clay || (function(win, doc, loc) {
             prev    : FindPrev
         },
         Http    : shake(NetHttp,{
-            get   : NetHttpGet,
-            post  : NetHttpPost,
-            jsonp : NetHttpJSONP
+            get     : NetHttpGet,
+            post    : NetHttpPost,
+            jsonp   : NetHttpJSONP
         }),
         Widget  : {
-            template: WidgetBuildTemplate
+            tmpl    : WidgetBuildTemplate
         },
         Control : {
             keys    : ControlKeys,
@@ -112,7 +110,8 @@ Clay || (function(win, doc, loc) {
             toarray : toArray,
             istype  : IsType,
             shake   : shake,
-            fill    : fill
+            fill    : fill,
+            str2dom : stringToDomElement
         }
     });
 
@@ -123,7 +122,7 @@ Clay || (function(win, doc, loc) {
      *  Object.prototypeは拡張しない
      *  Arrayをfor inループで探索するならhasOwnPropertyを使うこと
      */
-    // *4 : JavaScript1.6までサポート
+    // *1 : JavaScript1.6
     fill(String.prototype, {
         trim      : StringTrim,
         trimLeft  : StringTrimLeft,
@@ -133,13 +132,13 @@ Clay || (function(win, doc, loc) {
         decamelize: StringDecamelize
     });
     fill(Array.prototype, {
-        indexOf     : ArrayIndexOf,     // *4
-        lastIndexOf : ArrayLastIndexOf, // *4
-        filter      : ArrayFilter,      // *4
-        forEach     : ArrayForEach,     // *4
-        every       : ArrayEvery,       // *4
-        map         : ArrayMap,         // *4
-        some        : ArraySome,        // *4
+        indexOf     : ArrayIndexOf,     // *1
+        lastIndexOf : ArrayLastIndexOf, // *1
+        filter      : ArrayFilter,      // *1
+        forEach     : ArrayForEach,     // *1
+        every       : ArrayEvery,       // *1
+        map         : ArrayMap,         // *1
+        some        : ArraySome,        // *1
         contains    : ArrayContaitns,
         el          : ArrayElementLoop
     });
@@ -239,6 +238,7 @@ Clay || (function(win, doc, loc) {
 
     //==================================================================================================================
     // String.prototype
+
     /**
      * String#trim
      */
@@ -482,17 +482,22 @@ Clay || (function(win, doc, loc) {
 
     /**
      * Array#el
+     * Clay.ElemとClay.Eventのメソッドの第一引数に，要素を補って実行する
      *
-     * @param func
-     * @param args
-     * @param thisObj
+     * @example
+     *   var Elem = Clay.Elem, Event = Clay.Event;
+     *   [nodeA, nodeB, nodeC].el(Elem.clazz, '+hogehoge');
+     *   [nodeA, nodeB, nodeC].el(Event.on, 'click', func);
+     *
+     * @param {Function} func
+     * @return {Array}
      */
-    function ArrayElementLoop(func, args, thisObj) {
-        var i = 0, item, ctx = thisObj || this,
+    function ArrayElementLoop(func) {
+        var i = 0, item, args = toArray(arguments, 1),
             rv, rvAry = [];
         while (item = this[i++]) {
             if (item.nodeType && item.nodeType === Node.ELEMENT_NODE) {
-                rv = func.apply(ctx, [item].concat(args));
+                rv = func.apply(this, [item].concat(args));
                 rv && rvAry.push(rv);
             }
         }
@@ -546,7 +551,6 @@ Clay || (function(win, doc, loc) {
 
     /**
      * 型判別
-     * assert: 型の判定まで行って，不一致のときにTypeErrorをthrow
      *
      * @param {*}       mixed
      * @param {String}  [assert]
@@ -568,6 +572,20 @@ Clay || (function(win, doc, loc) {
         } else {
             return undefined;
         }
+    }
+
+    /**
+     * 文字列からDOM要素を生成する
+     *
+     * @param {String}   html
+     * @param {Document} [root]
+     * @return {DocumentFragment}
+     */
+    function stringToDomElement(html, root) {
+        root = root || doc;
+        var range = root.createRange();
+        range.selectNodeContents(root.body);
+        return range.createContextualFragment(html);
     }
 
     //==================================================================================================================
@@ -689,20 +707,21 @@ Clay || (function(win, doc, loc) {
      * URLからアクションを焼き上げ
      * DOMの構築は待たない
      *
-     * Clay.Bake({
-     *     '*'           : function() {
-     *        // 常に実行
-     *    },
-     *    'foo/:name'   : function(params) {
-     *        // URLの一部を引数として受け取る
-     *        // var name = params.name;
-     *    },
-     *    'hige/moja'   : function() {
-     *        Clay.Knead(['anim', 'control'], function() {
-     *            // Kneadと併用するときにシンタックスシュガーを入れる？
-     *        })
-     *    }
-     * }, true, false);
+     * @example
+     *   Clay.Bake({
+     *       '*'           : function() {
+     *          // 常に実行
+     *      },
+     *      'foo/:name'   : function(params) {
+     *          // URLの一部を引数として受け取る
+     *          // var name = params.name;
+     *      },
+     *      'hige/moja'   : function() {
+     *          Clay.Knead(['anim', 'control'], function() {
+     *              // Kneadと併用するときにシンタックスシュガーを入れる？
+     *          })
+     *      }
+     *   }, true, false);
      *
      * @param {Object}   conditions
      * @param {Boolean}  hashchange
@@ -748,9 +767,10 @@ Clay || (function(win, doc, loc) {
      * 必要なモジュールをJunctionLoadを通して読み込むんでからCALLBACKを実行する
      * DOMの構築を待つ
      *
-     * Clay.Knead('modules/storage', function() {
-     *     // 関係モジュール読み込み後に実行
-     * });
+     * @example
+     *   Clay.Knead('modules/control', function() {
+     *       // 関係モジュール読み込み後に実行
+     *   });
      *
      * @param {String|Array} modules
      * @param {Function}     callback
@@ -1056,26 +1076,6 @@ Clay || (function(win, doc, loc) {
     // -moz@
 
     //==================================================================================================================
-    // Itelator
-    /**
-     * 要素配列に適用するイテレーター
-     *
-     * @param {Function} func    素の適用関数
-     * @param {Array}    elms    Elementの配列
-     * @param {Array}    orgArgs オリジナルの配列化されたAruguments
-     * @return {void}
-     */
-    function ElementIterator(func, elms, orgArgs) {
-        // zero-fill right shift to ensure that length is an UInt32
-        var i, iz = elms.length >>> 0, elm, args = toArray(orgArgs, 1);
-
-        for (i = iz; i--;) {
-            elm = elms[i];
-            func.apply(elm, [elm].concat(args));
-        }
-    }
-
-    //==================================================================================================================
     // Event
     /**
      * DOMイベントを定義
@@ -1094,10 +1094,6 @@ Clay || (function(win, doc, loc) {
      * @return {void}
      */
     function EventDefine(target, type, expr, listener, bubble, remove) {
-
-        if (IsType(target) === 'array') {
-            return ElementIterator(EventDefine, target, arguments);
-        }
 
         // DOM Level2 Event相当にノーマライズ
         function _normalize(event) {
@@ -1293,10 +1289,6 @@ Clay || (function(win, doc, loc) {
      * @return {void}
      */
     function EventEmit(target, type, bubble, cancel) {
-        if (IsType(target) === 'array') {
-            return ElementIterator(EventDefine, target, arguments);
-        }
-
         var event, orgEvent,
             b = bubble || false,
             c = cancel || true;
@@ -1493,17 +1485,11 @@ Clay || (function(win, doc, loc) {
     /**
      * クラス操作
      *
-     * @param {Node|Array} elm
-     * @param {String}     oClazz 1byte目が制御子+2byte目以降がクラス名
+     * @param {Node}   elm
+     * @param {String} oClazz 1byte目が制御子+2byte目以降がクラス名
      * @return {void|Boolean} 要素のクラス名（今回操作対象でなかったクラスを含む）
      */
     function ElementClass(elm, oClazz) { // operator(str1)+className(str*)
-
-        if (IsType(elm) === 'array') {
-//            return elm.iterator(ElementClass, toArray(arguments, 1), this);
-            return ElementIterator(ElementClass, elm, arguments);
-        }
-
         var opr = oClazz.substr(0, 1),
           clazz = oClazz.substr(1),
             has = (' '+elm.className+' ').indexOf(' '+clazz+' ') != -1;
@@ -1533,16 +1519,12 @@ Clay || (function(win, doc, loc) {
      * setするときは，elm.style
      * getするときは，elm.ownerDocument.defaultView.getComputedStyle
      *
-     * @param {Node|Array}          elm
+     * @param {Node}                elm
      * @param {String|Object|Array} key
      * @param {String}              [val]
      * @return {Array|Boolean|String|Object} Iterate|Set|SingleGet|ServalGet
      */
     function ElementStyle(elm, key, val) {
-
-        if (IsType(elm) === 'array') {
-            return ElementIterator(ElementStyle, elm, arguments);
-        }
 
         elm._style || (elm._style = 'defaultView' in doc ? elm.ownerDocument.defaultView.getComputedStyle(elm, null)
                                                          : elm.currentStyle);
@@ -1552,7 +1534,8 @@ Clay || (function(win, doc, loc) {
             // set property
             elm.style[key] = val;
             return true;
-        } else if (arguments.length === 2) {
+        }
+        else if (arguments.length === 2) {
             var k;
             switch (IsType(key)) {
                 // get property
@@ -1583,9 +1566,9 @@ Clay || (function(win, doc, loc) {
     /**
      * 属性をgetまたはsetする
      *
-     * @param {Node|Array} elm
-     * @param {String}     key
-     * @param {String}     [val]
+     * @param {Node}   elm
+     * @param {String} key
+     * @param {String} [val]
      * @return {String|void}
      */
     function ElementAttribute(elm, key, val) {
@@ -1606,34 +1589,30 @@ Clay || (function(win, doc, loc) {
      * setするときは，elm._data[ident] に value を，data-{key} には ident を渡す
      * getするときは，data-{key} から ident を取得し，elm._data[ident] を返す
      *
-     * @param {Node|Array} elm
-     * @param {String}     key
-     * @param {String|*}   [val]
+     * @param {Node}     elm
+     * @param {String}   key
+     * @param {String|*} [val]
      * @return {*|void}
      */
     function ElementDataset(elm, key, val) {
         if ( val !== void 0 ) {
-            if (IsType(elm) === 'array') {
-                ElementIterator(ElementDataset, elm, arguments);
+            var type = IsType(val), ident;
+
+            if ( type !== 'string' && type !== 'number') {
+                elm._data || (elm._data = {});
+
+                ident = '__ident-'+INCREMENT_CUSTOMDATA_ATTRIBUTES++;
+
+                // _dataに本来のvalを格納
+                elm._data[ident] = val;
+
+                // valをidentに差し替え
+                val = ident;
+            }
+            if ('dataset' in elm) {
+                elm.dataset[key] = val;
             } else {
-                var type = IsType(val), ident;
-
-                if ( type !== 'string' && type !== 'number') {
-                    elm._data || (elm._data = {});
-
-                    ident = '__ident-'+INCREMENT_CUSTOMDATA_ATTRIBUTES++;
-
-                    // _dataに本来のvalを格納
-                    elm._data[ident] = val;
-
-                    // valをidentに差し替え
-                    val = ident;
-                }
-                if ('dataset' in elm) {
-                    elm.dataset[key] = val;
-                } else {
-                    elm.setAttribute('data-'+key.decamelize(), val);
-                }
+                elm.setAttribute('data-'+key.decamelize(), val);
             }
         } else {
             var rv = 'dataset' in elm ? elm.dataset[key]
@@ -1772,13 +1751,6 @@ Clay || (function(win, doc, loc) {
         }
     }
 
-    function ElementFromString(html, root) {
-        root = root || doc;
-        var range = root.createRange();
-        range.selectNodeContents(root.body);
-        return range.createContextualFragment(html);
-    }
-
     /**
      * 指定した要素を，別の要素で置き換える
      *
@@ -1788,7 +1760,7 @@ Clay || (function(win, doc, loc) {
      */
     function ElementReplace(targetElm, replaceElm) {
         if (typeof replaceElm === 'string') {
-            replaceElm = ElementFromString(replaceElm);
+            replaceElm = stringToDomElement(replaceElm);
         }
         targetElm.parentNode.replaceChild(replaceElm, targetElm);
     }
@@ -1802,7 +1774,7 @@ Clay || (function(win, doc, loc) {
      */
     function ElementWrap(targetElm, wrapElm) {
         if (typeof wrapElm === 'string') {
-            wrapElm = ElementFromString(wrapElm);
+            wrapElm = stringToDomElement(wrapElm);
         }
         ElementInsert(targetElm, wrapElm, 'beforeBegin');
         targetElm.previousSibling.appendChild(targetElm);
@@ -1815,11 +1787,7 @@ Clay || (function(win, doc, loc) {
      * @return {void}
      */
     function ElementEmpty(elm) {
-        if (IsType(elm) === 'array') {
-            ElementIterator(ElementEmpty, elm, arguments);
-        } else {
-            elm.innerHTML = '';
-        }
+        elm.innerHTML = '';
     }
 
     /**
@@ -1829,11 +1797,7 @@ Clay || (function(win, doc, loc) {
      * @return {void}
      */
     function ElementRemove(elm) {
-        if (IsType(elm) === 'array') {
-            ElementIterator(ElementRemove, elm, arguments);
-        } else {
-            elm.parentNode.removeChild(elm);
-        }
+        elm.parentNode.removeChild(elm);
     }
 
     /**
