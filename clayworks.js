@@ -1,0 +1,2537 @@
+/**
+ * Clayworks
+ * 粘土こねこね
+ *
+ * Copyright (c) 2011 Ayumu Sato ( http://havelog.ayumusato.com )
+ *
+ * Licensed under the MIT license:
+ *  http://www.opensource.org/licenses/mit-license.php
+ *
+ *
+ * 実行管理系のメソッド類
+ *  ready
+ *      よくあるやつ
+ *  doll (ドロにんぎょう)
+ *      汎用クラス的なオブジェクト生成器
+ *  knead (粘土こねこね)
+ *      依存スクリプトをロードするが，すべて非同期ロードするので依存関係
+ *  bake (粘土やきやき)
+ *      URLで分岐させて処理を適用する）
+ *  register
+ *      モジュールを登録する
+ *  fetch
+ *      登録済みのモジュール取得する
+ *  depend
+ *      モジュールの依存関係を宣言する（registerでラップされている前提）
+ *
+ *
+ * きっとたぶんSupport Browser
+ *  InternetExplorer 6, 7, 8, 9
+ *  Firefox          3.6, newest
+ *  Safari           newest
+ *  Google Chrome    newest
+ *  Opera            newest
+ *
+ * @see ナビ子記法 http://handsout.jp/slide/1883
+ */
+var Clay;
+Clay || (function(win, doc, loc) {
+
+    "use strict";
+
+    // *1 : ElementItelatorに対応
+    // *2 : setter用途のみElementItelatorに対応
+    // *3 : 追加要素にHTMLString使用可
+
+    // ElementSelectorの循環参照
+    Clay = shake(ClaylumpFactory, {
+        ready    : ReadyHandler,
+        jsload   : ScriptLoader,
+
+        doll     : DOLL_ClassFactory,
+        bake     : BAKE_LocationDispatcher,
+        knead    : KNEAD_ModuleResolver,
+
+        register : ModuleRegister,
+        fetch    : ModuleFetcher,
+        depend   : ModuleDepender,
+
+        Env      : EnvironmentDetector(),
+        Event    : shake(EventDefine,{
+            on      : EventOn,          // *1
+            off     : EventOff,         // *1
+            emit    : EventEmit,        // *1
+            pub     : EventPublish,
+            sub     : EventSubscribe
+        }),
+        Elem     : shake(ElementSelector,{
+            clazz   : ElementClass,     // *2
+            css     : ElementStyle,     // *2
+            attr    : ElementAttribute, // *2
+            data    : ElementDataset,   // *2
+            html    : ElementHTML,
+            text    : ElementText,
+
+            last    : ElementInsLast,   // *3
+            first   : ElementInsFirst,  // *3
+            before  : ElementInsBefore, // *3
+            after   : ElementInsAfter,  // *3
+            insert  : ElementInsert,    // *3
+            replace : ElementReplace,   // *3
+            wrap    : ElementWrap,      // *3
+
+            empty   : ElementEmpty,     // *1
+            remove  : ElementRemove,    // *1
+
+            swap    : ElementSwap,
+            clone   : ElementClone,
+
+            str2dom : ElementFromString
+        }),
+        Find    : {
+            parent  : FindParent,
+            children: FindChildren,
+            siblings: FindSiblings,
+            closest : FindClosest,
+            next    : FindNext,
+            prev    : FindPrev
+        },
+        Http    : shake(NetHttp,{
+            get   : NetHttpGet,
+            post  : NetHttpPost,
+            jsonp : NetHttpJSONP
+        }),
+        Widget  : {
+            template: WidgetBuildTemplate
+        },
+        Control : {
+            keys    : ControlKeys,
+            drag    : ControlDrag
+        },
+        Util    : {
+            toarray : toArray,
+            istype  : IsType,
+            shake   : shake,
+            fill    : fill
+        }
+    });
+
+    /**
+     * コアJavaScriptのprototype拡張マップ
+     *
+     * 前提
+     *  Object.prototypeは拡張しない
+     *  Arrayをfor inループで探索するならhasOwnPropertyを使うこと
+     */
+    // *4 : JavaScript1.6までサポート
+    fill(String.prototype, {
+        trim      : StringTrim,
+        trimLeft  : StringTrimLeft,
+        trimRight : StringTrimRight,
+        repeat    : StringRepeat,
+        camelize  : StringCamelize,
+        decamelize: StringDecamelize
+    });
+    fill(Array.prototype, {
+        indexOf     : ArrayIndexOf,     // *4
+        lastIndexOf : ArrayLastIndexOf, // *4
+        filter      : ArrayFilter,      // *4
+        forEach     : ArrayForEach,     // *4
+        every       : ArrayEvery,       // *4
+        map         : ArrayMap,         // *4
+        some        : ArraySome,        // *4
+        contains    : ArrayContaitns,
+        el          : ArrayElementLoop
+    });
+
+    /**
+     * 内部いろいろ変数
+     */
+    var HEAD = doc.getElementsByTagName('head')[0],
+        ENV  = Clay.Env,
+
+        BASE_URL    = loc.protocol+'//'+loc.host+loc.pathname.replace(/[a-z-_.]+$/i, ''),
+        SCRIPT_ROOT = (function() {
+            var scripts = HEAD.getElementsByTagName('script'),
+                isClay  = /clayworks[-.\w]*js$/,
+                i = 0, iz = scripts.length, test;
+
+            for (; i<iz; i++) {
+                test = scripts[i].src.replace(isClay, '');
+                if (test !== scripts[i]) {
+                    return test;
+                }
+            }
+            return null;
+        })(),
+
+        INCREMENT_JSONP_CALLBACKS       = 0,
+        INCREMENT_CUSTOMDATA_ATTRIBUTES = 0,
+
+        MODULE_LOAD_REMAINING    = 0,
+        MODULE_LOAD_DEPENDENCIES = {};
+
+    /**
+     * 内部スタック
+     */
+    var STACK_READY_HANDLERS  = [],
+        STACK_PUBSUB_HANDLERS = {},
+        MODULE_LOAD_CALLBACKS = [];
+
+    /**
+     * 内部キャッシュ
+     */
+    var CACHE_TEMPLATE  = {},
+        CACHE_MODULE    = {};
+
+    /**
+     * 内部フラグ
+     */
+    var FLG_DOM_ALREADY = false;
+
+    /**
+     * 内部メモ
+     */
+    var METADATA_CONTENTS      = '|BASE|COMMAND|LINK|META|NOSCRIPT|SCRIPT|STYLE|TITLE|',
+        FLOW_CONTENTS          = '|A|ABBR|ADDRESS|AREA|ARTICLE|ASIDE|AUDIO|B|BDI|BDO|BLOCKQUOTE|BR|BUTTON|CANVAS|CITE|CODE|COMMAND|DATALIST|DEL|DETAILS|DFN|DIV|DL|EM|EMBED|FIELDSET|FIGURE|FOOTER|FORM|H1|H2|H3|H4|H5|H6|HEADER|HGROUP|HR|I|IFRAME|IMG|INPUT|INS|KBD|KEYGEN|LABEL|MAP|MARK|MATH|MENU|METER|NAV|NOSCRIPT|OBJECT|OL|OUTPUT|P|PRE|PROGRESS|Q|RUBY|S|SAMP|SCRIPT|SECTION|SELECT|SMALL|SPAN|STRONG|STYLE|SUB|SUP|SVG|TABLE|TEXTAREA|TIME|U|UL|VAR|VIDEO|WBR|',
+        SECTIONING_CONTENTS    = '|ARTICLE|ASIDE|NAV|SECTION|',
+        HEADING_CONTENTS       = '|H1|H2|H3|H4|H5|H6|HGROUP|',
+        PHRASING_CONTENTS      = '|A|ABBR|AREA||AUDIO|B|BDI|BDO|BR|BUTTON|CANVAS|CITE|CODE|COMMAND|DATALIST|DEL||DFN|EM|EMBED|I|IFRAME|IMG|INPUT|INS||KBD|KEYGEN|LABEL|MAP||MARK|MATH|METER|NOSCRIPT|OBJECT|OUTPUT|PROGRESS|Q|RUBY|S|SAMP|SCRIPT|SELECT|SMALL|SPAN|STRONG|SUB|SUP|SVG|TEXTAREA|TIME|U|VAR|VIDEO|WBR|',
+        EMBEDED_CONTENTS       = '|AUDIO|VANCAS|EMBED|IFRAME|IMG|MATH|OBJECT|SVG|VIDEO',
+        INTERACTIVE_CONTENTS   = '|A|AUDIO|BUTTON|DETAILS|EMBED|IFRAME|IMG|INPUT|KEYGEN|LABEL|MENU|OBJECT|SELECT|TEXTAREA|VIDEO|',
+
+        EMPTY_TAGS             = '|AREA|BASE|BASEFONT|BR|COL|FRAME|HR|IMG|INOT|ISINDEX|LINK|META|PARAM|WBR|',
+
+        IE_HTML_READ_ONLY_TAGS = '|TABLE|TFOOT|THEAD|TR|STYLE|WBR|SCRIPT|PARAM|';
+
+    /**
+     * 内部正規表現
+     */
+    var RE_SELECTOR_QUERY = /^([.#]?)[\w\-_]+$/,
+        RE_TRIM_LEFT      = /^[\s　]*/,
+        RE_TRIM_RIGHT     = /[\s　]*$/,
+        RE_TYPE_DETECT    = /\[object (\w+)\]/;
+
+    /**
+     * 代替@IE属性
+     */
+    var IE_FIX_ATTR = {
+        'class'     : 'className',
+        'for'       : 'htmlFor',
+        acesskey    : 'accessKey',
+        tabindex    : 'tabIndex',
+        colspan     : 'colSpan',
+        rowspan     : 'rowSpan',
+        frameborder : 'frameBorder'
+    };
+
+    /**
+     * 代替@Node
+     */
+    var Node = win.Node || {
+        ELEMENT_NODE   : 1,
+        ATTRIBUTE_NODE : 2,
+        TEXT_NODE      : 3,
+        COMMENT_NODE   : 8,
+        DCOUMENT_NODE  : 9,
+        DOCUMENT_FRAGMENT_NODE : 11
+    };
+
+    //==================================================================================================================
+    // String.prototype
+    /**
+     * String#trim
+     */
+    function StringTrim() {
+        return this.replace(RE_TRIM_LEFT  , '').replace(RE_TRIM_RIGHT, '');
+    }
+
+    /**
+     * String#trimLeft
+     */
+    function StringTrimLeft() {
+        return this.replace(RE_TRIM_LEFT  , '');
+    }
+
+    /**
+     * String#trimRight
+     */
+    function StringTrimRight() {
+        return this.replace(RE_TRIM_RIGHT, '');
+    }
+
+    /**
+     * String#repeat
+     * 文字列を指定回数繰り返し
+     *
+     * @param iz
+     */
+    function StringRepeat(iz) {
+        var i = 0, rv = '';
+        for (; i<iz; i++) {
+            rv += this;
+        }
+        return rv;
+    }
+
+    /**
+     * String#camelize
+     * -か_でセパレートされた文字列をキャメライズ
+     */
+    function StringCamelize() {
+        var chunks = this.split(/[_-]/),
+                 i = 0,
+                iz = chunks.length,
+                rv = '';
+        for (; i<iz; i++) {
+            if (i === 0) {
+                rv += chunks[i].toLowerCase();
+            } else {
+                rv += chunks[i].substr(0, 1).toUpperCase() + chunks[i].substr(1).toLowerCase();
+            }
+        }
+        return rv;
+    }
+
+    /**
+     * String#decamelize
+     * キャメライズされた文字列を，指定されたセパレータ（デフォルトは -）でつなぐ
+     *
+     * @param [separator]
+     */
+    function StringDecamelize(separator) {
+        separator || (separator = '-');
+        return this.replace(/([a-z])([A-Z])/g, '$1_$2').replace(/[-_]/g, separator).toLowerCase();
+    }
+
+    //==================================================================================================================
+    // Array.prototype
+    // https://developer.mozilla.org/en/JavaScript/Reference/Global_Objects/Array
+
+    /**
+     * Array#forEach
+     * @see https://developer.mozilla.org/ja/JavaScript/Reference/Global_Objects/Array/forEach
+     * @copyright 1 Oct 2011 by dbruant
+     *
+     * @param {Function} callback
+     * @param {Object}   thisObj
+     * @return {void}
+     */
+    function ArrayForEach(callback, thisObj) {
+        IsType(callback, 'function');
+
+        var i = 0, iz = this.length;
+        for (; i<iz; i++) {
+            if (i in this) {
+                callback.call((thisObj || this), this[i], i, this);
+            }
+        }
+    }
+
+    /**
+     * Array#every
+     * @see https://developer.mozilla.org/ja/JavaScript/Reference/Global_Objects/Array/every
+     * @copyright 7 Jun 2011 by evilpie
+     *
+     * @param {Function} callback
+     * @param {Object}   thisObj
+     * @return {Boolean}
+     */
+    function ArrayEvery(callback , thisObj) {
+        IsType(callback, 'function');
+
+        var i = 0, iz = this.length;
+        for (; i < iz; i++) {
+            if (i in this && !callback.call((thisObj || this), this[i], i, this)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Array#filter
+     * @see https://developer.mozilla.org/ja/JavaScript/Reference/Global_Objects/Array/filter
+     *
+     * @param {Function} callback
+     * @param {Object} thisObj
+     * @return {Array}
+     */
+    function ArrayFilter(callback, thisObj) {
+        IsType(callback, 'function');
+
+        var i = 0, iz = this.length, rv = [];
+        for (; i < iz; i++) {
+            if (i in this) {
+                var val = this[i]; // callback が this を 変化させた場合に備え
+                if (callback.call((thisObj || this), val, i, this)) {
+                    rv.push(val);
+                }
+            }
+        }
+        return rv;
+    }
+
+    /**
+     * Array#indexOf
+     * @see https://developer.mozilla.org/ja/JavaScript/Reference/Global_Objects/Array/indexOf
+     *
+     * @param {Function} elt
+     * @param {Number}   from
+     * @return {Number}
+     */
+    function ArrayIndexOf(elt, from) {
+        var i = from || 0, iz = this.length;
+        i = (i < 0) ? Math.ceil(i)
+                    : Math.floor(i);
+        if (i < 0) {
+            i += iz;
+        }
+        for (; i < iz; i++) {
+            if (i in this && this[i] === elt) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    /**
+     * Array#lastIndexOf
+     * @see https://developer.mozilla.org/ja/JavaScript/Reference/Global_Objects/Array/lastIndexOf
+     *
+     * @param {Function} elt
+     * @param {Number}   from
+     * @return {Number}
+     */
+    function ArrayLastIndexOf(elt, from) {
+        var i = from, iz = this.length;
+        if (isNaN(i)) {
+            i = iz - 1;
+        } else {
+            i = (i < 0) ? Math.ceil(i)
+                        : Math.floor(i);
+
+            if (i < 0) {
+                i += iz;
+            } else if (i >= iz) {
+                i = iz - 1;
+            }
+        }
+        for (; i > -1; i--) {
+            if (i in this && this[i] === elt) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    /**
+     * Array#map
+     * @see https://developer.mozilla.org/ja/JavaScript/Reference/Global_Objects/Array/map
+     *
+     * @param {Function} callback
+     * @param {Object}   thisObj
+     * @return {Array}
+     */
+    function ArrayMap(callback, thisObj) {
+        IsType(callback, 'function');
+
+        var i = 0, iz = this.length, rv = new Array(iz);
+        for (; i < iz; i++) {
+          if (i in this) {
+              rv[i] = callback.call((thisObj || this), this[i], i, this);
+          }
+        }
+        return rv;
+    }
+
+    /**
+     * Array#some
+     * @see https://developer.mozilla.org/ja/JavaScript/Reference/Global_Objects/Array/some
+     *
+     * @param {Function} callback
+     * @param {Object}   thisObj
+     * @return {Boolean}
+     */
+    function ArraySome(callback, thisObj) {
+        IsType(callback, 'function');
+
+        var i = 0, iz = this.length;
+        for (; i < iz; i++) {
+            if (i in this && callback.call((thisObj || this), this[i], i, this)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Array#contains
+     *
+     * @param {*} needle
+     * @return {Boolean}
+     */
+    function ArrayContaitns(needle) {
+        for (var i in this) {
+            if (this.hasOwnProperty(i) && this[i] === needle) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Array#el
+     *
+     * @param func
+     * @param args
+     * @param thisObj
+     */
+    function ArrayElementLoop(func, args, thisObj) {
+        var i = 0, item, ctx = thisObj || this,
+            rv, rvAry = [];
+        while (item = this[i++]) {
+            if (item.nodeType && item.nodeType === Node.ELEMENT_NODE) {
+                rv = func.apply(ctx, [item].concat(args));
+                rv && rvAry.push(rv);
+            }
+        }
+        return (rvAry.length !== 0) ? rvAry : this;
+    }
+
+    //==================================================================================================================
+    // Utility
+    /**
+     * オブジェクトを積極的に合成
+     *
+     * @param {Object} a
+     * @param {Object} b
+     * @return {Object}
+     */
+    function shake(a, b) {
+        var i;
+        for (i in b) {
+            if (b.hasOwnProperty(i)) {
+                a[i] = b[i];
+            }
+        }
+        return a;
+    }
+
+    /**
+     * オブジェクトを消極的に合成
+     *
+     * @param {Object} base
+     * @param {Object} pad
+     * @return {void}
+     */
+    function fill(base, pad) {
+        var k;
+        for (k in pad) {
+            if (pad.hasOwnProperty(k)) {
+                k in base || (base[k] = pad[k]);
+            }
+        }
+    }
+
+    /**
+     * ArrayLike(NodeList, HTMLCollection)なObjectを，Arrayに変換
+     *
+     * @param {Object} list
+     * @param {Number} [i]
+     */
+    function toArray(list, i) {
+        return Array.prototype.slice.call(list, (i === void 0) ? 0 : i);
+    }
+
+    /**
+     * 型判別
+     * assert: 型の判定まで行って，不一致のときにTypeErrorをthrow
+     *
+     * @param {*}       mixed
+     * @param {String}  [assert]
+     * @return {String|Boolean}
+     */
+    // @todo issue: isString, isArrayなどに分解する（＆簡潔な判定にする）
+    function IsType(mixed, assert) {
+        if (Object.prototype.toString.call(mixed).match(RE_TYPE_DETECT)) {
+            var type = RegExp.$1.toLowerCase();
+            if (assert) {
+                if (type !== assert) {
+                    throw new TypeError();
+                } else {
+                    return true;
+                }
+            } else {
+                return type;
+            }
+        } else {
+            return undefined;
+        }
+    }
+
+    //==================================================================================================================
+    // Claylump
+
+    /**
+     * Claylump生成器
+     *
+     * @param {String} expr
+     */
+    function ClaylumpFactory(expr) {
+        return new Claylump(ElementSelector(expr));
+    }
+
+    /**
+     * DOM操作系のショートハンドコレクション
+     * Event＆Elem系のメソッドをチェインできる
+     *
+     * @constructor
+     * @param {Node|Array} elms
+     */
+    function Claylump(elms) {
+        if (IsType(elms) !== 'array') {
+            elms = [elms];
+        }
+        var i = 0, iz = elms.length, that = this;
+
+        this._elms    = elms;
+        this._rv      = [];
+        this.next     = _lumpNext;
+        this.hasNext  = _lumpHasNext;
+        this.rewind   = _lumpRewind;
+        this.current  = _lumpCurrent;
+        this.ret      = _lumpChainEnd;
+
+        function _lumpNext() {
+            if (!that.hasNext()) {
+                return null;
+            }
+            return that._elms[i++];
+        }
+        function _lumpHasNext() {
+            return i < iz;
+        }
+        function _lumpRewind() {
+            iz = 0;
+        }
+        function _lumpCurrent() {
+            return that._elms[0];
+        }
+        function _lumpChainEnd() {
+            return that._rv;
+        }
+    }
+
+    // ショートハンドを合成
+    shake(Claylump.prototype, {
+        clazz   : ClayFinkelize(ElementClass),
+        css     : ClayFinkelize(ElementStyle),
+        attr    : ClayFinkelize(ElementAttribute),
+        data    : ClayFinkelize(ElementDataset)
+    });
+
+    /**
+     * 部分適用
+     * 
+     * @this {Claylump}
+     * @param func
+     */
+    function ClayFinkelize(func) {
+        function _finkelize() {
+            var i = 0, elms = this._elms, elm;
+
+            this._rv = [];
+            this.rewind();
+
+            while (elm = elms[i++]) {
+                this._rv.push(
+                    func.apply(this, [elm].concat(toArray(arguments)))
+                );
+            }
+            return this;
+        }
+        return _finkelize;
+    }
+
+    //==================================================================================================================
+    // Executioner
+
+    /**
+     * readyの登録振り分け
+     *
+     * @param {Function} handler
+     * @param {String}   [type]
+     * @return {void}
+     */
+    function ReadyHandler(handler, type) {
+        if (type === void 0) {
+            if (!!FLG_DOM_ALREADY) {
+                handler(Clay);
+            } else {
+                STACK_READY_HANDLERS.push(handler);
+            }
+        } else {
+            // @todo issue: その他特殊タイミングのreadyライクイベントに対応する
+        }
+    }
+
+    /**
+     * クラスライクなオブジェクトの生成器
+     *
+     * @param {String} name
+     */
+    function DOLL_ClassFactory(name) {
+        // @todo issue: 実装する
+    }
+
+    /**
+     * URLからアクションを焼き上げ
+     * DOMの構築は待たない
+     *
+     * Clay.Bake({
+     *     '*'           : function() {
+     *        // 常に実行
+     *    },
+     *    'foo/:name'   : function(params) {
+     *        // URLの一部を引数として受け取る
+     *        // var name = params.name;
+     *    },
+     *    'hige/moja'   : function() {
+     *        Clay.Knead(['anim', 'control'], function() {
+     *            // Kneadと併用するときにシンタックスシュガーを入れる？
+     *        })
+     *    }
+     * }, true, false);
+     *
+     * @param {Object}   conditions
+     * @param {Boolean}  hashchange
+     * @param {Boolean}  pushstate
+     * @return {void}
+     */
+    function BAKE_LocationDispatcher(conditions, hashchange, pushstate) {
+        // @todo issue: pushstate, hashchangeにも反応するように
+        var path = loc.pathname, condition, always,
+            evals = {}, params = {};
+
+        // 常時実行型を保持
+        if ('*' in conditions) {
+            always = conditions['*'];
+            delete conditions['*'];
+        }
+
+        // 評価器を作成
+        // パラメーターは1つのみ保持
+        // @todo issue: baseUrlを考慮させる
+        // @todo issue: 複数のパラメーターを取れるようにする
+        for (condition in conditions) {
+            evals[condition] = condition.replace(/:([a-z-_.+]+)/i, '([\\w.]+)');
+            RegExp.$1 && (params[condition] = RegExp.$1);
+        }
+
+        function _resolve() {
+            var args = {}, needle;
+            if (always !== void 0) {
+                always(Clay);
+            }
+            for (needle in evals) {
+                if (loc.pathname.match(evals[needle])) {
+                    RegExp.$1 && (args[params[needle]] = RegExp.$1);
+                    conditions[needle](Clay, args);
+                }
+            }
+        }
+        _resolve();
+    }
+
+    /**
+     * 必要なモジュールをJunctionLoadを通して読み込むんでからCALLBACKを実行する
+     * DOMの構築を待つ
+     *
+     * Clay.Knead('modules/storage', function() {
+     *     // 関係モジュール読み込み後に実行
+     * });
+     *
+     * @param {String|Array} modules
+     * @param {Function}     callback
+     * @return {void}
+     */
+    function KNEAD_ModuleResolver(modules, callback) {
+        modules = (typeof modules === 'string') ? [modules] : modules;
+
+        MODULE_LOAD_CALLBACKS.push(callback);
+        ModuleListLoader(modules);
+    }
+
+    /**
+     * Knead等で解決済みのモジュールを読み込む
+     *
+     * @param {String} path
+     * @return {*}
+     * @throw {ReferenceError}
+     */
+    function ModuleFetcher(path) {
+        if (CACHE_MODULE[path]) {
+            return CACHE_MODULE[path];
+        } else {
+            throw new ReferenceError();
+        }
+    }
+
+    /**
+     * モジュールを追加する
+     * 他の依存モジュールが宣言されていれば，JunctionLoadに回す
+     *
+     * @param {String} path
+     * @param {Array} dependencies
+     * @param {Object|Function} registerObject
+     * @return {void}
+     */
+    function ModuleRegister(path, dependencies, registerObject) {
+        if (arguments.length === 3) {
+            ModuleListLoader(dependencies);
+        } else {
+            registerObject = dependencies;
+        }
+        CACHE_MODULE[path] = registerObject;
+    }
+
+    /**
+     * モジュールの依存関係を宣言する
+     *
+     * @param {Object} dependencies
+     * @return {void}
+     */
+    function ModuleDepender(dependencies) {
+        MODULE_LOAD_DEPENDENCIES = shake(MODULE_LOAD_DEPENDENCIES, dependencies);
+    }
+
+    /**
+     * 与えられたモジュールのリストをロードする
+     * LOAD_REMAININGが0になった時点で，junctionからcallbackを実行
+     *
+     * @param {Array} list
+     * @return {void}
+     */
+    function ModuleListLoader(list) {
+        var item, i = 0, depend;
+
+        if (IsType(list) === 'string') {
+            list = [list];
+        }
+
+        MODULE_LOAD_REMAINING += list.length;
+
+        while (item = list[i++]) {
+            if (!CACHE_MODULE[item]) {
+                // あらかじめ宣言された依存関係があればロードする
+                if (depend = MODULE_LOAD_DEPENDENCIES[item]) {
+                    ModuleListLoader(depend);
+                }
+                ScriptLoader(SCRIPT_ROOT+item.replace('.', '/')+'.js', _junction, true, false);
+            } else {
+                _junction();
+            }
+        }
+
+        /**
+         * callbackのスタックを後ろから順に，ReadyHandler越しに実行する
+         *
+         * @return {void}
+         */
+        function _junction() {
+            MODULE_LOAD_REMAINING--;
+            if (0 === MODULE_LOAD_REMAINING) {
+                var i, iz = MODULE_LOAD_CALLBACKS.length >>> 0;
+                for (i = iz; i--;) {
+                    ReadyHandler(MODULE_LOAD_CALLBACKS[i]);
+                }
+                MODULE_LOAD_CALLBACKS = [];
+            }
+        }
+    }
+
+    /**
+     * スクリプトをロードする
+     *
+     * @param {String}   path
+     * @param {Function} callback
+     * @param {Boolean}  async
+     * @param {Boolean}  defer
+     * @return {void}
+     */
+    function ScriptLoader(path, callback, async, defer) {
+        defer  = defer === void 0 ? false : defer;
+        async  = async === void 0 ? false : async;
+
+        var script = doc.createElement('script');
+
+        script.src     = path;
+        script.type    = 'text/javascript';
+        script.charset = 'utf-8';
+        script.async   = async;
+        script.defer   = defer;
+
+        script.onload = script.onreadystatechange = function() {
+            script.onload = script.onreadystatechange = null;
+            callback && callback();
+        };
+        HEAD.appendChild(script);
+    }
+
+    //==================================================================================================================
+    // Environment
+
+    /**
+     * クライアント環境の情報を取得する
+     *
+     * @return {Object}
+     */
+    function EnvironmentDetector() {
+        // @todo issue: 単純なRegExp#testとString#indexOfに分解して再構成
+        var ua     = navigator.userAgent.toUpperCase(),
+            RE_RENDERRING_ENGINE = /(TRIDENT|WEBKIT|GECKO|PRESTO)\/([\d\.]+)/,
+            RE_MOBILE_DEVICE     = /(?=ANDROID).+(MOBILE)|(ANDROID|IPAD|IPHONE|IPOD|BLACKBERRY|WINDOWS PHONE)/,
+            RE_MOBILE_OS         = /(BLACKBERRY\d+|WINDOWS PHONE OS|ANDROID|[IPHONE ]?OS)[\s\/]([\d\._]+)/,
+            RE_DESKTOP_BROWSER   = /(CHROME|OPERA|IE|FIREFOX|VERSION)[\/\s]([\d\.]+)/,
+            RE_DESKTOP_OS        = /(WINDOWS|MAC|LINUX)[\sA-Z;]+([\d\._]+)/,
+            matches,
+            rv    = {
+                TRIDENT : false,
+                GECKO   : false,
+                WEBKIT  : false,
+                PRESTO  : false,
+
+                IE      : false,
+                IE6     : false,
+                IE67    : false,
+                IE678   : false,
+                IE6789  : false,
+
+                FIREFOX : false,
+                CHROME  : false,
+                SAFARI  : false,
+                OPERA   : false,
+
+                ANDROID : false,
+                IOS     : false,
+                WINPHONE: false,
+                BBERRY  : false,
+
+                WINDOWS : false,
+                LINUX   : false,
+                MAC     : false,
+
+                PC      : false,
+                PHONE   : false,
+                TABLET  : false,
+
+                WEBAPP  : ('standalone' in window.navigator && window.navigator.standalone) ? true : false,
+                SSL     : loc.protocol === 'https:'
+            };
+
+        // rendering engine
+        if (matches = ua.match(RE_RENDERRING_ENGINE)) {
+            rv[matches[1]] = parseFloat(matches[2]);
+        }
+
+        // mobile? or desktop?
+        if (matches = ua.match(RE_MOBILE_DEVICE)) {
+
+            // device type
+            if (!matches[1] && matches[2] === 'ANDROID' || matches[2] === 'IPAD') {
+                rv.TABLET = true;
+            } else {
+                rv.PHONE = true;
+            }
+
+            // mobile os
+            if (matches = ua.match(RE_MOBILE_OS)) {
+                matches[2] = parseFloat(matches[2].replace('_', '.'));
+                switch (matches[1]) {
+                    case ' OS'           : rv.IOS      = matches[2]; break;
+                    case 'ANDROID'       : rv.ANDROID  = matches[2]; break;
+                    case 'WINDOWS PHONE' : rv.WINPHONE = matches[2]; break;
+                    case 'BLACKBERRY'    : rv.BBERRY   = matches[2]; break;
+                }
+            }
+        } else {
+
+            // device type
+            rv.PC = true;
+
+            // browser type
+            if (matches = ua.match(RE_DESKTOP_BROWSER)) {
+                rv[(matches[1] === 'VERSION' ? 'SAFARI'
+                                             : matches[1])] = parseFloat(matches[2]);
+                if (rv.IE) {
+                    rv.IE6    = rv.IE < 7;
+                    rv.IE67   = rv.IE < 8;
+                    rv.IE678  = rv.IE < 9;
+                    rv.IE6789 = rv.IE < 10;
+                }
+            }
+
+            // desktop os
+            if (matches = ua.match(RE_DESKTOP_OS)) {
+                rv[matches[1]] = parseFloat(matches[2].replace('_', '.'));
+            }
+        }
+
+        return rv;
+    }
+
+    //==================================================================================================================
+    // Feature Adaptive
+
+    // @ie6-
+    /**
+     * IE6を対象にXMLHttpRequestを埋める
+     */
+    function AdaptiveIE6XHR() {
+        var dict = ['Msxml2.XMLHTTP.6.0', 'Msxml2.XMLHTTP.3.0', 'Msxml2.XMLHTTP', 'Microsoft.XMLHTTP'], i = 0;
+        for (; i<4; i++) {
+            try {
+                return new ActiveXObject(dict[i]);
+            } catch (e) {
+                /*...*/
+            }
+        }
+        throw new Error('Failed to create ActiveXObject.');
+    }
+    if ( ENV.IE6 ) {
+        win.XMLHttpRequest = AdaptiveIE6XHR;
+    }
+    // -ie6@
+
+    // @ie67-
+    if ( ENV.IE67 ) {
+        win.XDomainRequest = AdaptiveIE67XDR;
+        Node.prototype.getElementsByClassName = AdaptiveGetElementsByClassName;
+    }
+    /**
+     * IE67を対象にXDomainRequestを埋める
+     */
+    function AdaptiveIE67XDR() {
+        // @todo issue: IE67でXDomainRequest風のインターフェースを再現する
+    }
+    /**
+     * IE67を対象にgetElementsByClassNameを埋める
+     * @param clazz
+     */
+    function AdaptiveGetElementsByClassName(clazz) {
+        var elems = this.getElementsByTagName('*'),
+          evClass = ' '+clazz+' ',
+                i = 0,
+               rv = [],
+                e;
+
+        while (e = elems[i]) {
+            if (e.nodeType === Node.ELEMENT_NODE && (' '+e.className+' ').indexOf(evClass) !== -1) {
+                rv.push(e);
+            }
+            i++;
+        }
+        rv.item = function(i) {
+            return this[i];
+        };
+        return rv;
+    }
+    // -ie67@
+
+    // @moz-
+    /**
+     * Mozillaを対象にouterHTMLを埋める
+     */
+    function AdaptiveOuterHTML() {
+        var r = document.createRange(), tub = document.createElement('div');
+        r.selectNode(this);
+        tub.appendChild(r.cloneContents());
+        r.detach();
+        return tub.innerHTML;
+    }
+    if ( ENV.FIREFOX && !HTMLElement.prototype.outerHTML ) {
+        HTMLElement.prototype.__defineGetter__('outerHTML', AdaptiveOuterHTML);
+    }
+    // -moz@
+
+    //==================================================================================================================
+    // Itelator
+    /**
+     * 要素配列に適用するイテレーター
+     *
+     * @param {Function} func    素の適用関数
+     * @param {Array}    elms    Elementの配列
+     * @param {Array}    orgArgs オリジナルの配列化されたAruguments
+     * @return {void}
+     */
+    function ElementIterator(func, elms, orgArgs) {
+        // zero-fill right shift to ensure that length is an UInt32
+        var i, iz = elms.length >>> 0, elm, args = toArray(orgArgs, 1);
+
+        for (i = iz; i--;) {
+            elm = elms[i];
+            func.apply(elm, [elm].concat(args));
+        }
+    }
+
+    //==================================================================================================================
+    // Event
+    /**
+     * DOMイベントを定義
+     *
+     * @see Javascript Madness Mouse Events http://unixpapa.com/js/mouse.html
+     * @see JavaScript Madness Keyboard Events http://unixpapa.com/js/key.html
+     * @see DOM Level 2 Events http://www.w3.org/TR/DOM-Level-2-Events/events.html
+     * @see DOM Level 3 Events http://www.w3.org/TR/DOM-Level-3-Events/
+     *
+     * @param {Node|Array}  target
+     * @param {String}   type
+     * @param {String}   expr
+     * @param {Function} listener
+     * @param {Boolean}  bubble
+     * @param {Boolean}  remove
+     * @return {void}
+     */
+    function EventDefine(target, type, expr, listener, bubble, remove) {
+
+        if (IsType(target) === 'array') {
+            return ElementIterator(EventDefine, target, arguments);
+        }
+
+        // DOM Level2 Event相当にノーマライズ
+        function _normalize(event) {
+            var scopes, evtTarget;
+
+            // for IE678
+            if (ENV.IE678) {
+
+                // イベントオブジェクト
+                event        = win.event;
+                // イベントターゲット
+                event.target = (type === 'readystatechange') ? document : event.srcElement;
+
+                if (event.target.nodeType === Node.TEXT_NODE) {
+                    event.target = event.target.parentNode;
+                }
+
+                // リスナーターゲット
+                event.currentTarget = target;
+                // リレイテッドターゲット
+                event.relatedTarget = event.fromElement || event.toElement;
+
+                // button -> which
+                event.which = event.button === 1 ? 1 :
+                              event.button === 2 ? 3 :
+                              event.button === 4 ? 2 : 1;
+
+                // pageX/Yを補填 @todo issue: elm.ownerDocument の参照に変える
+                event.pageX = event.clientX + doc.documentElement.scrollLeft;
+                event.pageY = event.clientY + doc.documentElement.scrollTop;
+
+                // geckoのlayerX/Yにあわせる
+                event.layerX = event.offsetX;
+                event.layerY = event.offsetY;
+
+                event.stopPropagation = function() {
+                    event.cancelBubble = true;
+                };
+                event.preventDefault = function() {
+                    event.returnValue  = false;
+                }
+            }
+
+            // scope指定がなければそのままcall
+            if (expr === null) {
+                listener.call(target, event);
+            // 委譲scopeを探索してイベントターゲットが含まれていればcall
+            } else {
+                // イベントターゲット
+                evtTarget    = event.target;
+
+                // scopeを探索
+                scopes = expr.replace(/(\s*,\s*)/g, ',').split(',');
+                // @todo issue: スコープをセレクタとして判定できるようにする
+                // リスナーターゲットをセレクタで検索した結果に，イベントターゲットが含まれるか
+                for (var i = 0, iz = scopes.length; i<iz; i++) {
+                    if (scopes[i].toUpperCase() === evtTarget.tagName) {
+                        listener.call(evtTarget, event);
+                        event.stopPropagation();
+                        return;
+                    }
+                }
+            }
+        }
+
+        var evaluator, listeners, closures, i, iz;
+
+        // 要素のイベント記録領域を初期化
+        target._event || (target._event = {
+            listener : {},
+            closure  : {}
+        });
+        listeners = target._event.listener[type] || ( target._event.listener[type] = [] );
+        closures  = target._event.closure[type]  || ( target._event.closure[type]  = [] );
+
+        // 評価リスナを決定 & 記録
+        if (!remove) {
+            evaluator =  _normalize;
+            listeners.push(listener);
+            closures.push(evaluator);
+        } else {
+            i  = 0;
+            iz = listeners.length;
+            for (; i<iz; i++) {
+                if ( listeners[i] === listener ) {
+                    evaluator = closures[i];
+                    listeners.splice(i, 1);
+                    closures.splice(i, 1);
+                    break;
+                }
+            }
+        }
+
+        // IE678は XXtachEvent, それ以外は XXXEventListener
+        if (ENV.IE678) {
+            if (!remove) {
+                target.attachEvent('on'+type,  evaluator);
+            } else {
+                target.detachEvent('on'+type,  evaluator);
+            }
+        } else {
+            if (!remove) {
+                target.addEventListener(type, evaluator, !!bubble);
+            } else {
+                target.removeEventListener(type, evaluator, !!bubble);
+            }
+        }
+    }
+
+    /**
+     * DOMイベントを追加
+     *
+     * Pattern1 ( bind )
+     *   (elem) type, handler
+     *
+     * Pattern2 ( delegate / live )
+     *   (elem) type, expr, handler
+     *
+     * @return {void}
+     */
+    function EventOn() {
+        var target, type, expr, handler, bubble;
+
+        switch(arguments.length) {
+            case 3:
+                target = arguments[0];
+                type   = arguments[1];
+                expr   = null;
+                handler= arguments[2];
+                bubble = false;
+            break;
+
+            case 4:
+                target = arguments[0];
+                type   = arguments[1];
+                expr   = arguments[2];
+                handler= arguments[3];
+                bubble = true;
+            break;
+
+            default:
+                throw new Error('arugments are missing.');
+            break;
+        }
+        EventDefine(target, type, expr, handler, bubble, false);
+    }
+
+    /**
+     * DOMイベントを破棄
+     *
+     * Pattern1 ( unbind )
+     *   (elem) type, handler
+     *
+     * Pattern2 ( undelegate / unlive )
+     *   (elem) type, expr, handler
+     *
+     * @return {void}
+     */
+    function EventOff() {
+        var target, type, expr, handler, bubble;
+
+        switch(arguments.length) {
+            case 3:
+                target = arguments[0];
+                type   = arguments[1];
+                expr   = null;
+                handler= arguments[2];
+                bubble = false;
+            break;
+
+            case 4:
+                target = arguments[0];
+                type   = arguments[1];
+                expr   = arguments[2];
+                handler= arguments[3];
+                bubble = true;
+            break;
+
+            default:
+                throw new Error('arugments are missing.');
+            break;
+        }
+        EventDefine(target, type, expr, handler, bubble, true);
+    }
+
+    /**
+     * DOMイベントを任意発火
+     *
+     * @param {Node|Array}    target
+     * @param {String|Event}  type
+     * @param {Boolean}       bubble
+     * @param {Boolean}       cancel
+     * @return {void}
+     */
+    function EventEmit(target, type, bubble, cancel) {
+        if (IsType(target) === 'array') {
+            return ElementIterator(EventDefine, target, arguments);
+        }
+
+        var event, orgEvent,
+            b = bubble || false,
+            c = cancel || true;
+
+        if (typeof type !== 'string') {
+            orgEvent = type;
+            type = orgEvent.type;
+        }
+
+        // @todo issue: イベントオブジェクトの引き継ぎが半端
+
+        if (ENV.IE678) {
+            event = doc.createEventObject();
+            if (orgEvent) {
+                event.detail  = orgEvent.detail;
+                event.screenX = orgEvent.screenX;
+                event.clientX = orgEvent.clientX;
+                event.clientY = orgEvent.clientY;
+                event.ctrlKey = orgEvent.ctrlKey;
+                event.altKey  = orgEvent.altKey;
+                event.shiftKey= orgEvent.shiftKey;
+                event.metaKey = orgEvent.metaKey;
+                event.button  = orgEvent.button;
+                event.target  = orgEvent.target;
+                event.keyCode = orgEvent.keyCode;
+                event.currentTarget = orgEvent.currentTarget;
+                event.relatedTarget = orgEvent.relatedTarget;
+            }
+            target.fireEvent('on'+type, event);
+        } else {
+            switch(type) {
+                case 'click':
+                case 'dbclick':
+                case 'mouseover':
+                case 'mousemove':
+                case 'mouseout':
+                case 'mouseup':
+                case 'mousedown':
+                    event = doc.createEvent('MouseEvents');
+                    if (orgEvent) {
+                        event.initMouseEvent(
+                                type,
+                                b,
+                                c,
+                                win,
+                                orgEvent.detail,
+                                orgEvent.screenX,
+                                orgEvent.screenY,
+                                orgEvent.clientX,
+                                orgEvent.clientY,
+                                orgEvent.ctrlKey,
+                                orgEvent.altKey,
+                                orgEvent.shiftKey,
+                                orgEvent.metaKey,
+                                orgEvent.button,
+                                orgEvent.relatedTarget
+                        );
+                    } else {
+                        event.initEvent(type, b, c)
+                    }
+                break;
+                case 'keyup':
+                case 'keydown':
+                case 'keypress':
+                    event = doc.createEvent('KeyboardEvent');
+                    if (orgEvent) {
+                        var modifierList = '';
+
+                        if (!!orgEvent.ctrlKey) {
+                            modifierList += 'Control ';
+                        }
+                        if (!!orgEvent.altKey) {
+                            modifierList += 'Alt ';
+                        }
+                        if (!!orgEvent.shiftKey) {
+                            modifierList += 'Shift ';
+                        }
+                        if (!!orgEvent.metaKey) {
+                            modifierList += 'Meta';
+                        }
+
+                        event.initKeyboardEvent(
+                                type,
+                                b,
+                                c,
+                                win,
+                                orgEvent.keyCode,
+                                orgEvent.location,
+                                modifierList
+                        );
+                    } else {
+                        event.initEvent(type, b, c)
+                    }
+                break;
+                default:
+                    event = doc.createEvent('Event');
+                    event.initEvent(type, b, c);
+                break;
+            }
+            target.dispatchEvent(event)
+        }
+    }
+
+    /**
+     * DOM非依存の独自イベントを購読
+     *
+     * @param {String}   type
+     * @param {Function} subscriber
+     * @return {void}
+     */
+    function EventSubscribe(type, subscriber) {
+        var stack = (STACK_PUBSUB_HANDLERS[type] || (STACK_PUBSUB_HANDLERS[type] = [])), i = 0, tmp;
+
+        while (tmp = stack[i++]) {
+            if (tmp === subscriber) {
+                return false;
+            }
+        }
+        stack.push(subscriber);
+    }
+
+    /**
+     * DOM非依存の独自イベントを発行
+     *
+     * @param {String}       type
+     * @param {Array|Object} args
+     * @return {void}
+     */
+    function EventPublish(type, args) {
+        if (STACK_PUBSUB_HANDLERS[type] !== void 0) {
+            var subscribers = STACK_PUBSUB_HANDLERS[type], i = 0, subscriber;
+            while (subscriber = subscribers[i++]) {
+                subscriber.apply(this, args);
+            }
+        }
+    }
+
+    //==================================================================================================================
+    // Selector
+    /**
+     * Selector
+     *
+     * @param {String} expr
+     */
+    function ElementSelector(expr) {
+
+        var context = doc || {}, rv = null;
+
+        if (RE_SELECTOR_QUERY.test(expr)) {
+            switch(RegExp.$1) {
+                case '#':
+                    rv = SelectorById(context, expr.substr(1));
+                break;
+                case '.':
+                    rv = SelectorByClassName(context, expr.substr(1));
+                break;
+                default:
+                    rv = SelectorByTagName(context, expr);
+                break;
+            }
+        } else {
+            rv = SelectorByQuery(context, expr);
+        }
+
+        return (rv && rv.length !== void 0) ? toArray(rv) : rv;
+    }
+
+    function SelectorById (context, id) {
+        return context.getElementById(id);
+    }
+
+    function SelectorByClassName(context, klass) {
+        if (context.getElementsByClassName) {
+            return context.getElementsByClassName(klass);
+        } else {
+            return AdaptiveGetElementsByClassName.call(context, klass);
+        }
+    }
+
+    function SelectorByTagName(context, tagName) {
+        return context.getElementsByTagName(tagName);
+    }
+
+    function SelectorByQuery(context, expr) {
+        if (context.querySelectorAll) {
+            return context.querySelectorAll(expr);
+        } else {
+            return false;
+        }
+    }
+
+    //==================================================================================================================
+    // Element
+    /**
+     * クラス操作
+     *
+     * @param {Node|Array} elm
+     * @param {String}     oClazz 1byte目が制御子+2byte目以降がクラス名
+     * @return {void|Boolean} 要素のクラス名（今回操作対象でなかったクラスを含む）
+     */
+    function ElementClass(elm, oClazz) { // operator(str1)+className(str*)
+
+        if (IsType(elm) === 'array') {
+//            return elm.iterator(ElementClass, toArray(arguments, 1), this);
+            return ElementIterator(ElementClass, elm, arguments);
+        }
+
+        var opr = oClazz.substr(0, 1),
+          clazz = oClazz.substr(1),
+            has = (' '+elm.className+' ').indexOf(' '+clazz+' ') != -1;
+
+        opr = (opr === '@') ? ( !!has ? '-' : '+' )
+                            : opr;
+
+        if (opr === '+') {
+            elm.className += !has ? ' '+clazz : '';
+        }
+        else if (opr === '-') {
+            elm.className = !!has ? (' '+elm.className+' ').replace(' '+clazz+' ', ' ').replace(/\s{2,}/, ' ')
+                                  : elm.className;
+        }
+        else if (opr === '?') {
+            return has;
+        }
+        else {
+            throw new Error('receive illegal operator.');
+        }
+    }
+
+    /**
+     * CSS操作
+     *
+     * 主にCSSStyleDeclarationに対するアクセス
+     * setするときは，elm.style
+     * getするときは，elm.ownerDocument.defaultView.getComputedStyle
+     *
+     * @param {Node|Array}          elm
+     * @param {String|Object|Array} key
+     * @param {String}              [val]
+     * @return {Array|Boolean|String|Object} Iterate|Set|SingleGet|ServalGet
+     */
+    function ElementStyle(elm, key, val) {
+
+        if (IsType(elm) === 'array') {
+            return ElementIterator(ElementStyle, elm, arguments);
+        }
+
+        elm._style || (elm._style = 'defaultView' in doc ? elm.ownerDocument.defaultView.getComputedStyle(elm, null)
+                                                         : elm.currentStyle);
+
+        // @todo issue: 分岐を整理する
+        if (arguments.length === 3) {
+            // set property
+            elm.style[key] = val;
+            return true;
+        } else if (arguments.length === 2) {
+            var k;
+            switch (IsType(key)) {
+                // get property
+                case 'string':
+                    return elm._style[key];
+                break;
+                // set properties
+                case 'object':
+                    for (k in key) {
+                        elm.style[k] = key[k];
+                    }
+                    return true;
+                break;
+                // get properties
+                case 'array':
+                    var styles = elm._style,
+                        i = 0, rv = {};
+                    while (k = key[i++]) {
+                        styles[k] && (rv[k] = styles[k]);
+                    }
+                    return rv;
+                break;
+            }
+        }
+        throw new Error('invalid arguments');
+    }
+
+    /**
+     * 属性をgetまたはsetする
+     *
+     * @param {Node|Array} elm
+     * @param {String}     key
+     * @param {String}     [val]
+     * @return {String|void}
+     */
+    function ElementAttribute(elm, key, val) {
+        if (ENV.IE67 && key in IE_FIX_ATTR) {
+            key = IE_FIX_ATTR[key];
+        }
+        if (val !== void 0) {
+            elm.setAttribute(key, val);
+        } else {
+            return elm.getAttribute(key);
+        }
+    }
+
+    /**
+     * data-*に値をgetまたはsetする
+     *
+     * string や number でない値の扱い
+     * setするときは，elm._data[ident] に value を，data-{key} には ident を渡す
+     * getするときは，data-{key} から ident を取得し，elm._data[ident] を返す
+     *
+     * @param {Node|Array} elm
+     * @param {String}     key
+     * @param {String|*}   [val]
+     * @return {*|void}
+     */
+    function ElementDataset(elm, key, val) {
+        if ( val !== void 0 ) {
+            if (IsType(elm) === 'array') {
+                ElementIterator(ElementDataset, elm, arguments);
+            } else {
+                var type = IsType(val), ident;
+
+                if ( type !== 'string' && type !== 'number') {
+                    elm._data || (elm._data = {});
+
+                    ident = '__ident-'+INCREMENT_CUSTOMDATA_ATTRIBUTES++;
+
+                    // _dataに本来のvalを格納
+                    elm._data[ident] = val;
+
+                    // valをidentに差し替え
+                    val = ident;
+                }
+                if ('dataset' in elm) {
+                    elm.dataset[key] = val;
+                } else {
+                    elm.setAttribute('data-'+key.decamelize(), val);
+                }
+            }
+        } else {
+            var rv = 'dataset' in elm ? elm.dataset[key]
+                                      : elm.getAttribute('data-'+key.decamelize());
+
+            if (rv.indexOf('__ident-') === 0) {
+                rv = elm._data[rv];
+            }
+            return rv;
+        }
+    }
+
+    /**
+     * 指定した要素のinnerHTMLをgetまたはsetする
+     * get時にFx3.6向けの処理が挟んでいる
+     * http://stackoverflow.com/questions/3736474/firefox-add-a-xmlns-http-www-w3-org-1999-xhtml
+     *
+     * @param {Node}   elm
+     * @param {String} html
+     * @return {String}
+     */
+    function ElementHTML(elm, html) {
+        if (html !== void 0) {
+            // @todo issue: readonlyな要素を検知して処理を分岐させる
+            return elm.innerHTML = html;
+        } else {
+            if (ENV.FIREFOX) {
+                var tag = elm.tagName, regex = new RegExp('<'+tag+' xmlns=".+?">(.*?)<\/'+tag+'>', 'gi');
+                return elm.innerHTML.replace(regex, '$1');
+            } else {
+                return elm.innerHTML;
+            }
+        }
+    }
+
+    /**
+     * 指定した要素のtextContentをgetまたはsetする
+     *
+     * @param {Node}   elm
+     * @param {String} txt
+     * @return {String}
+     */
+    function ElementText(elm, txt) {
+        if (txt !== void 0) {
+            return ENV.IE678 ? elm.innerText = txt : elm.textContent = txt;
+        } else {
+            return ENV.IE678 ? elm.innerText : elm.textContent;
+        }
+    }
+
+    /**
+     * 要素内の後尾に，他の要素を追加
+     *
+     * @param {Node}        elm
+     * @param {Node|String} addElm
+     * @return {void}
+     */
+    function ElementInsLast(elm, addElm) {
+        ElementInsert(elm, addElm, 'beforeEnd');
+    }
+
+    /**
+     * 要素内の先頭に，他の要素を追加
+     *
+     * @param {Node}        elm
+     * @param {Node|String} addElm
+     * @return {void}
+     */
+    function ElementInsFirst(elm, addElm) {
+        ElementInsert(elm, addElm, 'afterBegin');
+    }
+
+    /**
+     * 要素の前に，他の要素を追加
+     *
+     * @param {Node}        elm
+     * @param {Node|String} addElm
+     * @return {void}
+     */
+    function ElementInsBefore(elm, addElm) {
+        ElementInsert(elm, addElm, 'beforeBegin');
+    }
+
+    /**
+     * 要素の後に，他の要素を追加
+     *
+     * @param {Node}        elm
+     * @param {Node|String} addElm
+     * @return {void}
+     */
+    function ElementInsAfter(elm, addElm) {
+        ElementInsert(elm, addElm, 'afterEnd');
+    }
+
+    /**
+     * 要素を追加する
+     *
+     * @param {Node}        elm
+     * @param {Node|String} addElm
+     * @param {String}      where
+     * @return {void}
+     */
+    function ElementInsert(elm, addElm, where) {
+        var html, range;
+        if (typeof addElm === 'string') {
+            if (elm.insertAdjacentHTML) {
+                elm.insertAdjacentHTML(where, addElm);
+                return;
+            } else {
+                html = addElm;
+            }
+        }
+
+        if (html !== void 0) {
+            range = elm.ownerDocument.createRange();
+            range['setStart'+(where.indexOf('End') !== -1 ? 'After' : 'Before')](elm);
+            addElm = range.createContextualFragment(html);
+        }
+
+        switch (where) {
+            case 'beforeBegin'  : // before
+                elm.parentNode.insertBefore(addElm, elm);
+                break;
+            case 'afterBegin'   : // first
+                elm.insertBefore(addElm, elm.firstChild);
+                break;
+            case 'beforeEnd'    : // last
+                elm.appendChild(addElm);
+                break;
+            case 'afterEnd'     : // after
+                elm.parentNode.insertBefore(addElm, elm.nextSibling);
+                break;
+            default :
+                // @todo issue: 例外
+                break;
+        }
+    }
+
+    function ElementFromString(html, root) {
+        root = root || doc;
+        var range = root.createRange();
+        range.selectNodeContents(root.body);
+        return range.createContextualFragment(html);
+    }
+
+    /**
+     * 指定した要素を，別の要素で置き換える
+     *
+     * @param {Node} targetElm
+     * @param {Node} replaceElm
+     * @return {void}
+     */
+    function ElementReplace(targetElm, replaceElm) {
+        if (typeof replaceElm === 'string') {
+            replaceElm = ElementFromString(replaceElm);
+        }
+        targetElm.parentNode.replaceChild(replaceElm, targetElm);
+    }
+
+    /**
+     * 指定した要素を，別の要素で包む
+     *
+     * @param {Node} targetElm
+     * @param {Node} wrapElm
+     * @return {void}
+     */
+    function ElementWrap(targetElm, wrapElm) {
+        if (typeof wrapElm === 'string') {
+            wrapElm = ElementFromString(wrapElm);
+        }
+        ElementInsert(targetElm, wrapElm, 'beforeBegin');
+        targetElm.previousSibling.appendChild(targetElm);
+    }
+
+    /**
+     * 指定した要素の子要素をすべて削除する
+     *
+     * @param {Node|Array} elm
+     * @return {void}
+     */
+    function ElementEmpty(elm) {
+        if (IsType(elm) === 'array') {
+            ElementIterator(ElementEmpty, elm, arguments);
+        } else {
+            elm.innerHTML = '';
+        }
+    }
+
+    /**
+     * 指定した要素を削除する
+     *
+     * @param {Node|Array} elm
+     * @return {void}
+     */
+    function ElementRemove(elm) {
+        if (IsType(elm) === 'array') {
+            ElementIterator(ElementRemove, elm, arguments);
+        } else {
+            elm.parentNode.removeChild(elm);
+        }
+    }
+
+    /**
+     * 要素Aと要素Bの位置を入れ替える
+     * イベントを引き継ぎたいので，Node#cloneNodeは使用しない
+     *
+     * @param {Node} elmA
+     * @param {Node} elmB
+     * @return {void}
+     */
+    function ElementSwap(elmA, elmB) {
+        var parentB = elmB.parentNode, needle = elmB.nextSibling;
+        elmA.parentNode.replaceChild(elmB, elmA);
+        parentB.insertBefore(elmA, needle);
+    }
+
+    /**
+     * 指定した要素を複製して返す
+     * withEventがtrueのときイベントをクローンするが，liveイベントはクローンしない
+     *
+     * @param {Node}    elm
+     * @param {Boolean} withEvent
+     * @return {Node}
+     */
+    // @todo issue: liveイベントもcloneできるように，exprやbubbleをどこかに補完する？
+    // @todo issue: liveイベントがbindイベントに変化してコピーされてしまうので，Eventの領域を分ける必要がある
+    // @todo issue: 未完成
+    function ElementClone(elm, withEvent) {
+        if ( !ENV.IE678 ) {
+            var clone = elm.cloneNode(true), type, listeners, i, iz;
+            if (withEvent && elm._event) {
+                for (type in elm._event.listener) {
+                    listeners = elm._event.listener[type];
+                    i  = 0;
+                    iz = listeners.length;
+                    for (; i<iz; i++) {
+                        EventDefine(clone, type, null, listeners[i], false, false);
+                    }
+                }
+            }
+            return clone;
+        } else {
+            for (var prop in elm) {
+                if (Object.hasOwnProperty.call(elm, prop)) {
+//                    alert(prop);
+                }
+            }
+        }
+    }
+
+    //==================================================================================================================
+    // Find
+    /**
+     * 指定した要素の親要素を返す
+     *
+     * @param {Node} elm
+     * @return {Node}
+     */
+    function FindParent(elm) {
+        return elm.parentNode;
+    }
+
+    /**
+     * 指定した要素の子要素を返す
+     *
+     * @param {Node} elm
+     * @return {Array}
+     */
+    function FindChildren(elm) {
+        if (elm.children) {
+            return toArray(elm.children);
+        } else {
+            var list = elm.childNodes, i = 0, rv = [], e;
+            while (e = list[i++]) {
+                if (e.nodeType === Node.ELEMENT_NODE) {
+                    rv.push(e);
+                }
+            }
+            return rv;
+        }
+    }
+
+    /**
+     * 指定した要素の兄弟要素を返す
+     *
+     * @param {Node} elm
+     * @param {Boolean} withSelf
+     * @return {Array}
+     */
+    function FindSiblings(elm, withSelf) {
+        var e, rv = [];
+
+        e = elm.previousSibling;
+        do {
+            if (e.nodeType === Node.ELEMENT_NODE) {
+                rv.push(e);
+            }
+        } while (e = e.previousSibling);
+
+        if (!!withSelf) {
+            rv.push(elm);
+        }
+
+        e = elm.nextSibling;
+        do {
+            if (e.nodeType === Node.ELEMENT_NODE) {
+                rv.push(e);
+            }
+        } while (e = e.nextSibling);
+
+        return rv;
+    }
+
+    /**
+     * 指定した要素名を，直近の先祖要素から返す
+     * 見つからなかった場合はnullを返す
+     *
+     * @param {Node}   elm
+     * @param {String} tag
+     * @return {Node}
+     */
+    function FindClosest(elm, tag) {
+        var e = elm, t = tag.toUpperCase();
+
+        while (e = e.parentNode) {
+            if (e.nodeType === Node.ELEMENT_NODE && e.tagName === t) {
+                return e;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * 指定した要素の，次の要素を返す
+     * 見つからなかった場合はnullを返す
+     *
+     * @param {Node} elm
+     * @return {Node}
+     */
+    function FindNext(elm) {
+
+        if (elm.nextElementSibling !== void 0) {
+            return elm.nextElementSibling;
+        } else {
+            var e = elm;
+            while (e = e.nextSibling) {
+                if (e.nodeType === Node.ELEMENT_NODE) {
+                    return e;
+                }
+            }
+            return null;
+        }
+    }
+
+    /**
+     * 指定した要素の，前の要素を返す
+     * 見つからなかった場合はnullを返す
+     *
+     * @param {Node} elm
+     * @return {Node}
+     */
+    function FindPrev(elm) {
+        if (elm.previousElementSibling !== void 0) {
+            return elm.previousElementSibling;
+        } else {
+            var e = elm;
+            while (e = e.previousSibling) {
+                if (e.nodeType === Node.ELEMENT_NODE) {
+                    return e;
+                }
+            }
+            return null;
+        }
+    }
+
+    //==================================================================================================================
+    // Http
+    /**
+     * HTTPリクエスト
+     *
+     * @param {String} path      リクエストパス
+     * @param {String} method    リクエストメソッド GET|POST
+     * @param {Object} callbacks コールバック success|error|complete|200(コード)|2xx(クラス)
+     * @param {Object} [options] オプション
+     * @return {XMLHttpRequest}
+     */
+    function NetHttp(path, method, callbacks, options ) {
+        options || ( options = {} );
+
+        var xhr, encoded = [],
+            async     = options.async || true,
+            data      = options.data  || null,
+            type      = options.type  || null;
+            callbacks = typeof callbacks === 'function' ? { complete: callbacks } : callbacks;
+
+        // IE678のみクロスドメインリクエストのときに、XDomainRequestを使用する
+        if (ENV.IE678) {
+            xhr =  !!path.match(/^https?:\/\//) ? new XDomainRequest() : new XMLHttpRequest();
+        } else {
+            xhr = new XMLHttpRequest();
+        }
+        xhr.onreadystatechange = _readyStateChange;
+
+        function _readyStateChange() {
+            if (xhr.readyState === 4) {
+                var statusCode  = xhr.status.toString(),
+                    statusClass = statusCode.replace(/^([1-5]{1})\d{2}$/, '$1xx'),
+                    contentType = xhr.getResponseHeader('Content-Type'),
+                    response;
+
+                switch(contentType.substr(0, contentType.indexOf(';')).trim()) {
+                    case 'text/xml' :
+                        response = xhr.responseXML;
+                    break;
+                    case 'text/json':
+                    case 'text/javascript':
+                    case 'application/json':
+                    case 'application/javascript':
+                    case 'application/x-javascript':
+                        response = JSON.parse(xhr.responseText);
+                    break;
+                    default:
+                        response = xhr.responseText;
+                    break;
+                }
+
+                // success or error
+                switch(statusClass) {
+                    case '2xx':
+                        callbacks['success'] && callbacks['success'](response, xhr);
+                    break;
+                    case '4xx':
+                    case '5xx':
+                        callbacks['error'] && callbacks['error'](response, xhr);
+                    break;
+                }
+
+                // 200, 401, 503 etc...
+                callbacks[statusCode] && callbacks[statusCode](response, xhr);
+
+                // 2xx, 4xx, 5xx etc...
+                callbacks[statusClass] && callbacks[statusClass](response, xhr);
+
+                // completed
+                callbacks['complete'] && callbacks['complete'](response, xhr);
+
+                xhr.abort();
+            }
+        }
+
+        // ajax open
+        xhr.open(method.toUpperCase(), path, async);
+        //xhr.setRequestHeader('HTTP_X_REQUESTED_WITH', 'XMLHttpRequest'); // @todo maybe: クロスドメイン時に含まれるとダメ？
+
+        // url encode
+        if (method === 'POST' && data !== null) {
+            for (var key in data) {
+                encoded.push((encodeURIComponent(key) + '=' + encodeURIComponent(data[key])).replace('%20', '+'));
+            }
+            data = encoded.join('&');
+            xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+        }
+
+        // send
+        xhr.send(data);
+
+        return xhr;
+    }
+
+    /**
+     * GETリクエスト
+     *
+     * @param {String} path      リクエストパス
+     * @param {Object} callbacks コールバック success|error|complete|200(コード)|2xx(クラス)
+     * @param {Object} [options] オプション
+     * @return {XMLHttpRequest}
+     */
+    function NetHttpGet(path, callbacks, options) {
+        return NetHttp(path, 'GET', callbacks, options);
+    }
+
+    /**
+     * POSTリクエスト
+     *
+     * @param {String} path      リクエストパス
+     * @param {Object} callbacks コールバック success|error|complete|200(コード)|2xx(クラス)
+     * @param {Object} [options] オプション
+     * @return {XMLHttpRequest}
+     */
+    function NetHttpPost(path, callbacks, options) {
+        return NetHttp(path, 'POST', callbacks, options);
+    }
+
+    /**
+     * JSONPリクエスト
+     *
+     * @param {String}   path      リクエストパス
+     * @param {String}   specifier コールバック関数名を指定するパラメータ名
+     * @param {Function} callback  コールバック
+     * @return {void}
+     */
+    function NetHttpJSONP(path, specifier, callback) {
+        var script       = doc.createElement('script'),
+            callbackname = 'bracketE_' + INCREMENT_JSONP_CALLBACKS++;
+
+        script.type = 'text/javascript';
+        script.src  = path + '&' + specifier + '=' + callbackname;
+
+        // @todo issue: onloadとonerrorのコールバックを指定可能にする
+        function _jsonpClosure(json) {
+            callback(json);
+            HEAD.removeChild(script);
+            delete window[callbackname];
+        }
+        window[callbackname] = _jsonpClosure;
+
+        HEAD.appendChild(script);
+    }
+
+    //==================================================================================================================
+    // Widget
+    /**
+     * 文字列からテンプレート評価器を作成
+     *
+     * @param {String} tmpl
+     * @return {Function}
+     */
+    function WidgetBuildTemplate(tmpl) {
+        return CACHE_TEMPLATE[tmpl] || (CACHE_TEMPLATE[tmpl] = new Function('data',
+            "var p=[];" +
+            "p.push('"+
+                tmpl.replace(/[\r\n\t]/g, ' ')
+                    .split("'").join("\\'")
+                    .split(/\s{2,}/).join(' ')
+                    //.replace(/%{(.+)}%/g, "',($1),'")
+                    .replace(
+                        /{([a-zA-Z0-9_\-\[\]\.]+)}/g,
+                        "',data.$1,'"
+                    )
+                    .replace(
+                        /<loop:(\w+)>([\s\S]*?)<\/loop:\w+>/g,
+                        "');for(var i=0,iz=data.$1.length;i<iz;i++){p.push('$2');}p.push('"
+                    )
+                +"');"
+            +"return p.join('');"
+        ));
+    }
+
+    //==================================================================================================================
+    // Control
+    /**
+     * ショートカットキーを簡略評価
+     */
+    // @todo issue: 実装する
+    function ControlKeys() {
+        var elem, scope, keymap;
+        // @todo issue: 本当に複数パタンの引数受け入れが必要？ 
+        switch (arguments.length) {
+            case 2:
+                elem    = arguments[0];
+                scope   = null;
+                keymap  = arguments[1];
+            break;
+            case 3:
+                elem    = arguments[0];
+                scope   = arguments[1];
+                keymap  = arguments[2];
+            break;
+        }
+        function _keyDetector(e) {
+            var fnc;
+            if (fnc = keymap[e.keyCode] && typeof fnc === 'function') {
+                fnc.call(elem, e);
+            }
+        }
+        EventOn(elem, scope, 'keypress', _keyDetector);
+    }
+
+    /**
+     * ドラッグ動作を可能にする
+     * 指定される要素は，position:absoluteでなくてはならない
+     *
+     * @param {Node}     elem
+     * @param {Object}   handlers
+     * @return {void}
+     */
+    function ControlDrag(elem, handlers) {
+
+        var dragging, dragClosure, initialPosition,
+            ownerDoc = elem.ownerDocument;
+
+        handlers = handlers || {};
+
+        // @todo issue: ウインドウ外に出たときにイベント制御が手放されている
+        EventOn(elem, 'mousedown', _draggingStart);
+        EventOn(ownerDoc, 'mouseup', _draggingEnd);
+
+        // position:absoluteを強制
+        ElementStyle(elem, 'position', 'absolute');
+
+        function _draggingStart(e) {
+            // ドラッグ開始
+            dragging = true;
+
+            // 初期位置を保持＆明示
+            initialPosition = elem.getBoundingClientRect();
+            ElementStyle(elem, {
+                left     : initialPosition.left,
+                top      : initialPosition.top
+            });
+
+            var initialOffsetX  = e.layerX,
+                initialOffsetY  = e.layerY;
+
+            handlers.move && handlers.move.call(elem, e);
+
+            // ドラッグ中のイベント
+            dragClosure = function _movingHandler(e) {
+                var movingX = e.pageX - initialOffsetX,
+                    movingY = e.pageY - initialOffsetY;
+
+                ElementStyle(elem, {
+                    top     : movingY+'px',
+                    left    : movingX+'px'
+                });
+                handlers.move && handlers.move.call(elem, e, movingX, movingY);
+
+                // mousemoveによる文字列選択を抑止(IE678)
+                // @ie678-
+                e.preventDefault();
+                // -ie678@
+            };
+            // ドラッグ動作開始
+            EventOn(ownerDoc, 'mousemove', dragClosure);
+
+            // mousedownによる文字列選択を抑止
+            e.preventDefault();
+        }
+
+        function _draggingEnd(e) {
+            // ドラッグ終了
+            if (!!dragging) {
+                dragging = false;
+
+                EventOff(ownerDoc, 'mousemove', dragClosure);
+                handlers.end && handlers.end.call(elem, e, initialPosition.left, initialPosition.top);
+            }
+        }
+    }
+
+    //==================================================================================================================
+    // Ready
+    /**
+     * DOMReady
+     * @see Dean Edwards: window.onload (again) http://dean.edwards.name/weblog/2006/06/again/#comment367184
+     */
+    function _readyStackExec() {
+        FLG_DOM_ALREADY = true;
+        var i = 0, ready;
+        while (ready = STACK_READY_HANDLERS[i++]) {
+            ready(Clay);
+        }
+        STACK_READY_HANDLERS = [];
+    }
+
+    function _readyStateTest() {
+        // @todo issue: PS3のloadedは拾ってはいけない？
+        if (/^(loaded|complete)$/.test(doc.readyState)) {
+            _readyStackExec();
+            EventOff(doc, 'readystatechange', _readyStateTest);
+        }
+    }
+
+    // @todo issue: DOMContentLoadedの判定フラグが必要
+    if (doc.addEventListener) {
+        EventOn(doc, 'DOMContentLoaded', _readyStackExec);
+    }
+    else if (doc.readyState) {
+        EventOn(doc, 'readystatechange', _readyStateTest);
+    }
+
+})(window, document, location);
+
+/*
+    http://www.JSON.org/json2.js
+    2011-02-23
+
+    Public Domain.
+
+    NO WARRANTY EXPRESSED OR IMPLIED. USE AT YOUR OWN RISK.
+
+    See http://www.JSON.org/js.html
+
+
+    This code should be minified before deployment.
+    See http://javascript.crockford.com/jsmin.html
+
+    USE YOUR OWN COPY. IT IS EXTREMELY UNWISE TO LOAD CODE FROM SERVERS YOU DO
+    NOT CONTROL.
+*/
+// Create a JSON object only if one does not already exist. We create the
+// methods in a closure to avoid creating global variables.
+
+var JSON;
+if (!JSON) {
+    JSON = {};
+}
+
+(function () {
+    "use strict";
+
+    function f(n) {
+        return n < 10 ? '0' + n : n;
+    }
+
+    if (typeof Date.prototype.toJSON !== 'function') {
+
+        Date.prototype.toJSON = function (key) {
+
+            return isFinite(this.valueOf()) ?
+                this.getUTCFullYear()     + '-' +
+                f(this.getUTCMonth() + 1) + '-' +
+                f(this.getUTCDate())      + 'T' +
+                f(this.getUTCHours())     + ':' +
+                f(this.getUTCMinutes())   + ':' +
+                f(this.getUTCSeconds())   + 'Z' : null;
+        };
+
+        String.prototype.toJSON      =
+            Number.prototype.toJSON  =
+            Boolean.prototype.toJSON = function (key) {
+                return this.valueOf();
+            };
+    }
+
+    var cx = /[\u0000\u00ad\u0600-\u0604\u070f\u17b4\u17b5\u200c-\u200f\u2028-\u202f\u2060-\u206f\ufeff\ufff0-\uffff]/g,
+        escapable = /[\\\"\x00-\x1f\x7f-\x9f\u00ad\u0600-\u0604\u070f\u17b4\u17b5\u200c-\u200f\u2028-\u202f\u2060-\u206f\ufeff\ufff0-\uffff]/g,
+        gap,
+        indent,
+        meta = {    // table of character substitutions
+            '\b': '\\b',
+            '\t': '\\t',
+            '\n': '\\n',
+            '\f': '\\f',
+            '\r': '\\r',
+            '"' : '\\"',
+            '\\': '\\\\'
+        },
+        rep;
+
+
+    function quote(string) {
+        escapable.lastIndex = 0;
+        return escapable.test(string) ? '"' + string.replace(escapable, function (a) {
+            var c = meta[a];
+            return typeof c === 'string' ? c :
+                '\\u' + ('0000' + a.charCodeAt(0).toString(16)).slice(-4);
+        }) + '"' : '"' + string + '"';
+    }
+
+
+    function str(key, holder) {
+        var i,          // The loop counter.
+            k,          // The member key.
+            v,          // The member value.
+            length,
+            mind = gap,
+            partial,
+            value = holder[key];
+        if (value && typeof value === 'object' &&
+                typeof value.toJSON === 'function') {
+            value = value.toJSON(key);
+        }
+        if (typeof rep === 'function') {
+            value = rep.call(holder, key, value);
+        }
+
+        switch (typeof value) {
+        case 'string':
+            return quote(value);
+
+        case 'number':
+            return isFinite(value) ? String(value) : 'null';
+        case 'boolean':
+        case 'null':
+            return String(value);
+        case 'object':
+            if (!value) {
+                return 'null';
+            }
+
+            gap += indent;
+            partial = [];
+
+            if (Object.prototype.toString.apply(value) === '[object Array]') {
+                length = value.length;
+                for (i = 0; i < length; i += 1) {
+                    partial[i] = str(i, value) || 'null';
+                }
+                v = partial.length === 0 ? '[]' : gap ?
+                    '[\n' + gap + partial.join(',\n' + gap) + '\n' + mind + ']' :
+                    '[' + partial.join(',') + ']';
+                gap = mind;
+                return v;
+            }
+            if (rep && typeof rep === 'object') {
+                length = rep.length;
+                for (i = 0; i < length; i += 1) {
+                    if (typeof rep[i] === 'string') {
+                        k = rep[i];
+                        v = str(k, value);
+                        if (v) {
+                            partial.push(quote(k) + (gap ? ': ' : ':') + v);
+                        }
+                    }
+                }
+            } else {
+                for (k in value) {
+                    if (Object.prototype.hasOwnProperty.call(value, k)) {
+                        v = str(k, value);
+                        if (v) {
+                            partial.push(quote(k) + (gap ? ': ' : ':') + v);
+                        }
+                    }
+                }
+            }
+            v = partial.length === 0 ? '{}' : gap ?
+                '{\n' + gap + partial.join(',\n' + gap) + '\n' + mind + '}' :
+                '{' + partial.join(',') + '}';
+            gap = mind;
+            return v;
+        }
+    }
+
+    if (typeof JSON.stringify !== 'function') {
+        JSON.stringify = function (value, replacer, space) {
+            var i;
+            gap = '';
+            indent = '';
+
+            if (typeof space === 'number') {
+                for (i = 0; i < space; i += 1) {
+                    indent += ' ';
+                }
+            } else if (typeof space === 'string') {
+                indent = space;
+            }
+
+            rep = replacer;
+            if (replacer && typeof replacer !== 'function' &&
+                    (typeof replacer !== 'object' ||
+                    typeof replacer.length !== 'number')) {
+                throw new Error('JSON.stringify');
+            }
+            return str('', {'': value});
+        };
+    }
+
+    if (typeof JSON.parse !== 'function') {
+        JSON.parse = function (text, reviver) {
+            var j;
+
+            function walk(holder, key) {
+                var k, v, value = holder[key];
+                if (value && typeof value === 'object') {
+                    for (k in value) {
+                        if (Object.prototype.hasOwnProperty.call(value, k)) {
+                            v = walk(value, k);
+                            if (v !== undefined) {
+                                value[k] = v;
+                            } else {
+                                delete value[k];
+                            }
+                        }
+                    }
+                }
+                return reviver.call(holder, key, value);
+            }
+
+            text = String(text);
+            cx.lastIndex = 0;
+            if (cx.test(text)) {
+                text = text.replace(cx, function (a) {
+                    return '\\u' +
+                        ('0000' + a.charCodeAt(0).toString(16)).slice(-4);
+                });
+            }
+
+            if (/^[\],:{}\s]*$/
+                    .test(text.replace(/\\(?:["\\\/bfnrt]|u[0-9a-fA-F]{4})/g, '@')
+                        .replace(/"[^"\\\n\r]*"|true|false|null|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?/g, ']')
+                        .replace(/(?:^|:|,)(?:\s*\[)+/g, ''))) {
+                j = eval('(' + text + ')');
+                return typeof reviver === 'function' ?
+                    walk({'': j}, '') : j;
+            }
+
+            throw new SyntaxError('JSON.parse');
+        };
+    }
+})();
