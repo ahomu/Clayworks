@@ -102,10 +102,6 @@ Clay || (function(win, doc, loc) {
         Widget  : {
             tmpl    : WidgetBuildTemplate
         },
-        Control : {
-            keys    : ControlKeys,
-            drag    : ControlDrag
-        },
         Util    : {
             toarray : toArray,
             istype  : IsType,
@@ -2144,108 +2140,6 @@ Clay || (function(win, doc, loc) {
                 +"');"
             +"return p.join('');"
         ));
-    }
-
-    //==================================================================================================================
-    // Control
-    /**
-     * ショートカットキーを簡略評価
-     */
-    // @todo issue: 実装する
-    function ControlKeys() {
-        var elem, scope, keymap;
-        // @todo issue: 本当に複数パタンの引数受け入れが必要？ 
-        switch (arguments.length) {
-            case 2:
-                elem    = arguments[0];
-                scope   = null;
-                keymap  = arguments[1];
-            break;
-            case 3:
-                elem    = arguments[0];
-                scope   = arguments[1];
-                keymap  = arguments[2];
-            break;
-        }
-        function _keyDetector(e) {
-            var fnc;
-            if (fnc = keymap[e.keyCode] && typeof fnc === 'function') {
-                fnc.call(elem, e);
-            }
-        }
-        EventOn(elem, scope, 'keypress', _keyDetector);
-    }
-
-    /**
-     * ドラッグ動作を可能にする
-     * 指定される要素は，position:absoluteでなくてはならない
-     *
-     * @param {Node}     elem
-     * @param {Object}   handlers
-     * @return {void}
-     */
-    function ControlDrag(elem, handlers) {
-
-        var dragging, dragClosure, initialPosition,
-            ownerDoc = elem.ownerDocument;
-
-        handlers = handlers || {};
-
-        // @todo issue: ウインドウ外に出たときにイベント制御が手放されている
-        EventOn(elem, 'mousedown', _draggingStart);
-        EventOn(ownerDoc, 'mouseup', _draggingEnd);
-
-        // position:absoluteを強制
-        ElementStyle(elem, 'position', 'absolute');
-
-        function _draggingStart(e) {
-            // ドラッグ開始
-            dragging = true;
-
-            // 初期位置を保持＆明示
-            initialPosition = elem.getBoundingClientRect();
-            ElementStyle(elem, {
-                left     : initialPosition.left,
-                top      : initialPosition.top
-            });
-
-            var initialOffsetX  = e.layerX,
-                initialOffsetY  = e.layerY;
-
-            handlers.move && handlers.move.call(elem, e);
-
-            // ドラッグ中のイベント
-            dragClosure = function _movingHandler(e) {
-                var movingX = e.pageX - initialOffsetX,
-                    movingY = e.pageY - initialOffsetY;
-
-                ElementStyle(elem, {
-                    top     : movingY+'px',
-                    left    : movingX+'px'
-                });
-                handlers.move && handlers.move.call(elem, e, movingX, movingY);
-
-                // mousemoveによる文字列選択を抑止(IE678)
-                // @ie678-
-                e.preventDefault();
-                // -ie678@
-            };
-            // ドラッグ動作開始
-            EventOn(ownerDoc, 'mousemove', dragClosure);
-
-            // mousedownによる文字列選択を抑止
-            e.preventDefault();
-        }
-
-        function _draggingEnd(e) {
-            // ドラッグ終了
-            if (!!dragging) {
-                dragging = false;
-
-                EventOff(ownerDoc, 'mousemove', dragClosure);
-                handlers.end && handlers.end.call(elem, e, initialPosition.left, initialPosition.top);
-            }
-        }
     }
 
     //==================================================================================================================
