@@ -46,26 +46,26 @@ Clay || (function(win, doc, loc) {
     // *1 : Array#elとClaylumpのショートハンドに対応
     // *2 : 追加要素にHTMLStringを使用可
     Clay = shake(ClaylumpFactory, {
-        ready    : ReadyHandler,
-        jsload   : ScriptLoader,
+        ready   : ReadyHandler,
+        jsload  : ScriptLoader,
 
-        doll     : DOLL_ClassFactory,
-        bake     : BAKE_LocationDispatcher,
-        knead    : KNEAD_ModuleResolver,
+        doll    : DOLL_ClassFactory,
+        bake    : BAKE_LocationDispatcher,
+        knead   : KNEAD_ModuleResolver,
 
-        register : ModuleRegister,
-        fetch    : ModuleFetcher,
-        depend   : ModuleDepender,
+        register: ModuleRegister,
+        fetch   : ModuleFetcher,
+        depend  : ModuleDepender,
 
-        Env      : EnvironmentDetector(),
-        Event    : shake(EventDefine,{
+        Env     : EnvironmentDetector(),
+        Event   : shake(EventDefine,{
             on      : EventOn,          // *1
             off     : EventOff,         // *1
             emit    : EventEmit,        // *1
             pub     : EventPublish,
             sub     : EventSubscribe
         }),
-        Elem     : shake(ElementSelector,{
+        Elem    : shake(ElementSelector,{
             clazz   : ElementClass,     // *1
             css     : ElementStyle,     // *1
             attr    : ElementAttribute, // *1
@@ -768,8 +768,10 @@ Clay || (function(win, doc, loc) {
         // @todo issue: baseUrlを考慮させる
         // @todo issue: 複数のパラメーターを取れるようにする
         for (condition in conditions) {
-            evals[condition] = condition.replace(/:([a-z-_.+]+)/i, '([\\w.]+)');
-            RegExp.$1 && (params[condition] = RegExp.$1);
+            if (conditions.hasOwnProperty(condition)) {
+                evals[condition] = condition.replace(/:([a-z-_.+]+)/i, '([\\w.]+)');
+                RegExp.$1 && (params[condition] = RegExp.$1);
+            }
         }
 
         function _resolve() {
@@ -778,7 +780,7 @@ Clay || (function(win, doc, loc) {
                 always(Clay);
             }
             for (needle in evals) {
-                if (loc.pathname.match(evals[needle])) {
+                if (evals.hasOwnProperty(needle) && loc.pathname.match(evals[needle])) {
                     RegExp.$1 && (args[params[needle]] = RegExp.$1);
                     conditions[needle](Clay, args);
                 }
@@ -1568,7 +1570,9 @@ Clay || (function(win, doc, loc) {
                 // set properties
                 case 'object':
                     for (k in key) {
-                        elm.style[k] = key[k];
+                        if (key.hasOwnProperty(k)) {
+                            elm.style[k] = key[k];
+                        }
                     }
                 break;
                 // get properties
@@ -2077,7 +2081,9 @@ Clay || (function(win, doc, loc) {
         // url encode
         if (method === 'POST' && data !== null) {
             for (var key in data) {
-                encoded.push((encodeURIComponent(key) + '=' + encodeURIComponent(data[key])).replace('%20', '+'));
+                if (data.hasOwnProperty(key)) {
+                    encoded.push((encodeURIComponent(key) + '=' + encodeURIComponent(data[key])).replace('%20', '+'));
+                }
             }
             data = encoded.join('&');
             xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
