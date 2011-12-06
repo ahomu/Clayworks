@@ -617,6 +617,7 @@ Clay || (function(win, doc, loc) {
         this.rewind   = _lumpRewind;
         this.current  = _lumpCurrent;
         this.ret      = _lumpChainEnd;
+        this.i        = _lumpIndex;
 
         function _lumpNext() {
             if (!that.hasNext()) {
@@ -631,10 +632,13 @@ Clay || (function(win, doc, loc) {
             iz = 0;
         }
         function _lumpCurrent() {
-            return that._elms[0];
+            return that._elms[i];
         }
         function _lumpChainEnd() {
             return that._rv;
+        }
+        function _lumpIndex(i) {
+            return that._elms[i];
         }
     }
 
@@ -1123,7 +1127,7 @@ Clay || (function(win, doc, loc) {
 
         // DOM Level2 Event相当にノーマライズ
         function _normalize(event) {
-            var scopes, evtTarget;
+            var scopes, evtTarget, e, i = 0;
 
             // for IE678
             if (ENV.IE678) {
@@ -1171,12 +1175,14 @@ Clay || (function(win, doc, loc) {
                 // イベントターゲット
                 evtTarget    = event.target;
 
-                // scopeを探索
-                scopes = expr.replace(/(\s*,\s*)/g, ',').split(',');
-                // @todo issue: スコープをセレクタとして判定できるようにする
-                // リスナーターゲットをセレクタで検索した結果に，イベントターゲットが含まれるか
-                for (var i = 0, iz = scopes.length; i<iz; i++) {
-                    if (scopes[i].toUpperCase() === evtTarget.tagName) {
+                scopes = ElementSelector(expr, event.currentTarget);
+
+                if (IsType(scopes) !== 'array') {
+                    scopes = [scopes];
+                }
+
+                while (e = scopes[i++]) {
+                    if (e === evtTarget) {
                         listener.call(evtTarget, event);
                         event.stopPropagation();
                         return;
@@ -1458,10 +1464,15 @@ Clay || (function(win, doc, loc) {
      * Selector
      *
      * @param {String} expr
+     * @param {Node}   [context]
+     * @return {Array|Node}
      */
-    function ElementSelector(expr) {
+    function ElementSelector(expr, context) {
+        // @todo issue: いい加減なのでどうにかする
 
-        var context = doc || {}, rv = null;
+        var rv;
+
+        context = context || doc;
 
         if (RE_SELECTOR_QUERY.test(expr)) {
             switch(RegExp.$1) {
@@ -1555,7 +1566,6 @@ Clay || (function(win, doc, loc) {
         elm._style || (elm._style = 'defaultView' in doc ? elm.ownerDocument.defaultView.getComputedStyle(elm, null)
                                                          : elm.currentStyle);
 
-        // @todo issue: 分岐を整理する
         if (arguments.length === 3) {
             // set property
             elm.style[key] = val;
@@ -1586,7 +1596,9 @@ Clay || (function(win, doc, loc) {
                 break;
             }
         }
-        throw new Error('invalid arguments');
+        else {
+            throw new Error('invalid arguments');
+        }
     }
 
     /**
