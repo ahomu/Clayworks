@@ -306,120 +306,72 @@ Clay || (function(win, doc, loc) {
     // https://developer.mozilla.org/en/JavaScript/Reference/Global_Objects/Array
 
     /**
-     * Array#forEach
-     * @see https://developer.mozilla.org/ja/JavaScript/Reference/Global_Objects/Array/forEach
-     * @copyright 1 Oct 2011 by dbruant
-     *
-     * @param {Function} callback
-     * @param {Object}   thisObj
-     * @return {void}
-     */
-    function ArrayForEach(callback, thisObj) {
-        IsType(callback, 'function');
-
-        var i = 0, iz = this.length;
-        for (; i<iz; i++) {
-            if (i in this) {
-                callback.call((thisObj || this), this[i], i, this);
-            }
-        }
-    }
-
-    /**
-     * Array#every
-     * @see https://developer.mozilla.org/ja/JavaScript/Reference/Global_Objects/Array/every
-     * @copyright 7 Jun 2011 by evilpie
-     *
-     * @param {Function} callback
-     * @param {Object}   thisObj
-     * @return {Boolean}
-     */
-    function ArrayEvery(callback , thisObj) {
-        IsType(callback, 'function');
-
-        var i = 0, iz = this.length;
-        for (; i < iz; i++) {
-            if (i in this && !callback.call((thisObj || this), this[i], i, this)) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    /**
      * Array#filter
-     * @see https://developer.mozilla.org/ja/JavaScript/Reference/Global_Objects/Array/filter
+     * @see https://developer.mozilla.org/en/JavaScript/Reference/Global_Objects/Array/filter
      *
      * @param {Function} callback
-     * @param {Object} thisObj
+     * @param {Object}   thisArg
      * @return {Array}
      */
-    function ArrayFilter(callback, thisObj) {
+    function ArrayFilter(callback, thisArg) {
         IsType(callback, 'function');
 
-        var i = 0, iz = this.length, rv = [];
-        for (; i < iz; i++) {
-            if (i in this) {
-                var val = this[i]; // callback が this を 変化させた場合に備え
-                if (callback.call((thisObj || this), val, i, this)) {
+        var O = Object(this), i = 0, iz = O.length >>> 0, that = (thisArg || this), rv = [], val;
+
+        while (i < iz) {
+            if (i in O) {
+                val = O[i]; // callback が this を 変化させた場合に備え
+                if (!callback.call(that, val, i, O)) {
                     rv.push(val);
                 }
             }
+            i++;
         }
         return rv;
     }
 
     /**
-     * Array#indexOf
-     * @see https://developer.mozilla.org/ja/JavaScript/Reference/Global_Objects/Array/indexOf
+     * Array#forEach
+     * @see https://developer.mozilla.org/en/JavaScript/Reference/Global_Objects/Array/forEach
      *
-     * @param {Function} elt
-     * @param {Number}   from
-     * @return {Number}
+     * @param {Function} callback
+     * @param {Object}   thisArg
+     * @return {void}
      */
-    function ArrayIndexOf(elt, from) {
-        var i = from || 0, iz = this.length;
-        i = (i < 0) ? Math.ceil(i)
-                    : Math.floor(i);
-        if (i < 0) {
-            i += iz;
-        }
-        for (; i < iz; i++) {
-            if (i in this && this[i] === elt) {
-                return i;
+    function ArrayForEach(callback, thisArg) {
+        IsType(callback, 'function');
+
+        var O = Object(this), i = 0, iz = O.length >>> 0, that = (thisArg || this);
+
+        while (i < iz) {
+            if (i in O) {
+                callback.call(that, O[i], i, O);
             }
+            i++;
         }
-        return -1;
     }
 
     /**
-     * Array#lastIndexOf
-     * @see https://developer.mozilla.org/ja/JavaScript/Reference/Global_Objects/Array/lastIndexOf
+     * Array#every
+     * @see https://developer.mozilla.org/en/JavaScript/Reference/Global_Objects/Array/every
+     * @copyright 7 Jun 2011 by evilpie
      *
-     * @param {Function} elt
-     * @param {Number}   from
-     * @return {Number}
+     * @param {Function} callback
+     * @param {Object}   thisArg
+     * @return {Boolean}
      */
-    function ArrayLastIndexOf(elt, from) {
-        var i = from, iz = this.length;
-        if (isNaN(i)) {
-            i = iz - 1;
-        } else {
-            i = (i < 0) ? Math.ceil(i)
-                        : Math.floor(i);
+    function ArrayEvery(callback , thisArg) {
+        IsType(callback, 'function');
 
-            if (i < 0) {
-                i += iz;
-            } else if (i >= iz) {
-                i = iz - 1;
+        var O = Object(this), i = 0, iz = O.length >>> 0, that = (thisArg || this);
+
+        while (i < iz) {
+            if (i in O && !callback.call(that, O[i], i, O)) {
+                return false;
             }
+            i++;
         }
-        for (; i > -1; i--) {
-            if (i in this && this[i] === elt) {
-                return i;
-            }
-        }
-        return -1;
+        return true;
     }
 
     /**
@@ -427,17 +379,18 @@ Clay || (function(win, doc, loc) {
      * @see https://developer.mozilla.org/ja/JavaScript/Reference/Global_Objects/Array/map
      *
      * @param {Function} callback
-     * @param {Object}   thisObj
+     * @param {Object}   thisArg
      * @return {Array}
      */
-    function ArrayMap(callback, thisObj) {
+    function ArrayMap(callback, thisArg) {
         IsType(callback, 'function');
 
-        var i = 0, iz = this.length, rv = new Array(iz);
-        for (; i < iz; i++) {
-          if (i in this) {
-              rv[i] = callback.call((thisObj || this), this[i], i, this);
-          }
+        var O = Object(this), i = 0, iz = O.length >>> 0, that = (thisArg || this), rv = new Array(iz);
+        while (i < iz) {
+            if (i in O) {
+                rv[i] = callback.call(that, O[i], i, O);
+            }
+            i++;
         }
         return rv;
     }
@@ -447,19 +400,84 @@ Clay || (function(win, doc, loc) {
      * @see https://developer.mozilla.org/ja/JavaScript/Reference/Global_Objects/Array/some
      *
      * @param {Function} callback
-     * @param {Object}   thisObj
+     * @param {Object}   thisArg
      * @return {Boolean}
      */
-    function ArraySome(callback, thisObj) {
+    function ArraySome(callback, thisArg) {
         IsType(callback, 'function');
 
-        var i = 0, iz = this.length;
-        for (; i < iz; i++) {
-            if (i in this && callback.call((thisObj || this), this[i], i, this)) {
+        var O = Object(this), i = 0, iz = O.length >>> 0, that = (thisArg || this);
+        while (i < iz) {
+            if (i in O && callback.call(that, O[i], i, O)) {
                 return true;
             }
+            i++;
         }
         return false;
+    }
+
+    /**
+     * Array#indexOf
+     * @see https://developer.mozilla.org/en/JavaScript/Reference/Global_Objects/Array/indexOf
+     *
+     * @param {*}      search
+     * @param {Number} [from]
+     * @return {Number}
+     */
+    function ArrayIndexOf(search, from) {
+        var O = Object(this), i = 0, iz = O.length >>> 0;
+        if (iz === 0) {
+            return -1;
+        }
+        if (arguments.length > 0) {
+            i = ~~from;
+            if (i !== i) { // shortcut for verifying if it's NaN
+                i = 0;
+            } else if (i !== 0 && i !== (1 / 0) && i !== -(1 / 0)) { // not Zero & not Infinity
+                i = (i > 0 || -1) * Math.floor(Math.abs(i));
+            }
+        }
+        if (i >= iz) {
+            return -1;
+        }
+        var k = i >= 0 ? i : Math.max(iz - Math.abs(i), 0);
+        for (; k < iz; k++) {
+            if (k in O && O[k] === search) {
+                return k;
+            }
+        }
+        return -1;
+    }
+
+    /**
+     * Array#lastIndexOf
+     * @see https://developer.mozilla.org/en/JavaScript/Reference/Global_Objects/Array/lastIndexOf
+     *
+     * @param {*}      search
+     * @param {Number} from
+     * @return {Number}
+     */
+    function ArrayLastIndexOf(search, from) {
+        var O = Object(this), iz = O.length >>> 0, i = iz;
+        if (iz === 0) {
+          return -1;
+        }
+        if (arguments.length > 0) {
+            i = ~~from;
+            if (i !== i) {
+                i = 0;
+            } else if (i !== 0 && i !== (1 / 0) && i !== -(1 / 0)) {
+                i = (i > 0 || -1) * Math.floor(Math.abs(i));
+            }
+        }
+
+        var k = i >= 0 ? Math.min(i, iz - 1) : iz - Math.abs(i);
+        for (; k >= 0; k--) {
+            if (k in O && O[k] === search) {
+                return k;
+            }
+        }
+        return -1;
     }
 
     /**
@@ -559,7 +577,7 @@ Clay || (function(win, doc, loc) {
             var type = RegExp.$1.toLowerCase();
             if (assert) {
                 if (type !== assert) {
-                    throw new TypeError();
+                    throw new TypeError(mixed+' is not a '+assert);
                 } else {
                     return true;
                 }
@@ -687,13 +705,11 @@ Clay || (function(win, doc, loc) {
         function _finkelize() {
             var i = 0, elms = this._elms, elm;
 
-            this._rv = [];
+            this._rv = new Array[elms.length];
             this.rewind();
 
             while (elm = elms[i++]) {
-                this._rv.push(
-                    func.apply(this, [elm].concat(toArray(arguments)))
-                );
+                this._rv[i] = func.apply(this, [elm].concat(toArray(arguments)));
             }
             return this;
         }
