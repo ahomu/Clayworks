@@ -31,7 +31,6 @@
  *  Safari           newest
  *  Google Chrome    newest
  *  Opera            newest
- *
  */
 var Clay;
 Clay || (function(win, doc, loc) {
@@ -433,7 +432,7 @@ Clay || (function(win, doc, loc) {
             i = ~~from;
             if (i !== i) { // shortcut for verifying if it's NaN
                 i = 0;
-            } else if (i !== 0 && i !== (1 / 0) && i !== -(1 / 0)) { // not Zero & not Infinity
+            } else if (i !== 0 && i !== Infinity && i !== -Infinity) { // not Zero & not Infinity
                 i = (i > 0 || -1) * Math.floor(Math.abs(i));
             }
         }
@@ -466,7 +465,7 @@ Clay || (function(win, doc, loc) {
             i = ~~from;
             if (i !== i) {
                 i = 0;
-            } else if (i !== 0 && i !== (1 / 0) && i !== -(1 / 0)) {
+            } else if (i !== 0 && i !== Infinity && i !== -Infinity) {
                 i = (i > 0 || -1) * Math.floor(Math.abs(i));
             }
         }
@@ -497,7 +496,7 @@ Clay || (function(win, doc, loc) {
 
     /**
      * Array#el
-     * Clay.ElemとClay.Eventのメソッドの第一引数に，要素を補って実行する
+     * Clay.ElemとClay.EventとClay.Findのメソッドの第一引数に，要素を補って実行する
      *
      * @example
      *   var Elem = Clay.Elem, Event = Clay.Event;
@@ -1346,7 +1345,7 @@ Clay || (function(win, doc, loc) {
             type = orgEvent.type;
         }
 
-        // @todo issue: イベントオブジェクトの引き継ぎが半端
+        // @todo issue: イベントオブジェクトの引き継ぎが適当＆半端
 
         if (ENV.IE678) {
             event = doc.createEventObject();
