@@ -307,6 +307,8 @@ Clay || (function(win, doc, loc) {
     /**
      * Array#filter
      * @see https://developer.mozilla.org/en/JavaScript/Reference/Global_Objects/Array/filter
+     * @description
+     *   <p>ある配列の要素で、与えられたフィルタリング関数が true を返したものすべてからなる新しい配列を生成します</p>
      *
      * @param {Function} callback
      * @param {Object}   thisArg
@@ -320,7 +322,7 @@ Clay || (function(win, doc, loc) {
         while (i < iz) {
             if (i in O) {
                 val = O[i]; // callback が this を 変化させた場合に備え
-                if (!callback.call(that, val, i, O)) {
+                if (callback.call(that, val, i, O)) {
                     rv.push(val);
                 }
             }
@@ -332,6 +334,8 @@ Clay || (function(win, doc, loc) {
     /**
      * Array#forEach
      * @see https://developer.mozilla.org/en/JavaScript/Reference/Global_Objects/Array/forEach
+     * @description
+     *   <p>配列中のそれぞれの要素について関数を呼び出します</p>
      *
      * @param {Function} callback
      * @param {Object}   thisArg
@@ -353,7 +357,8 @@ Clay || (function(win, doc, loc) {
     /**
      * Array#every
      * @see https://developer.mozilla.org/en/JavaScript/Reference/Global_Objects/Array/every
-     * @copyright 7 Jun 2011 by evilpie
+     * @description
+     *   <p>ある配列の全ての要素が与えられたテスト関数を満たした場合に true を返します</p>
      *
      * @param {Function} callback
      * @param {Object}   thisArg
@@ -376,6 +381,8 @@ Clay || (function(win, doc, loc) {
     /**
      * Array#map
      * @see https://developer.mozilla.org/ja/JavaScript/Reference/Global_Objects/Array/map
+     * @description
+     *   <p>ある配列の全ての要素について与えられた関数を呼び出した結果からなる新しい配列を生成します</p>
      *
      * @param {Function} callback
      * @param {Object}   thisArg
@@ -397,6 +404,8 @@ Clay || (function(win, doc, loc) {
     /**
      * Array#some
      * @see https://developer.mozilla.org/ja/JavaScript/Reference/Global_Objects/Array/some
+     * @description
+     *   <p>ある配列の少なくとも 1 つの要素が与えられたテスト関数を満たした場合に true を返します</p>
      *
      * @param {Function} callback
      * @param {Object}   thisArg
@@ -418,6 +427,8 @@ Clay || (function(win, doc, loc) {
     /**
      * Array#indexOf
      * @see https://developer.mozilla.org/en/JavaScript/Reference/Global_Objects/Array/indexOf
+     * @description
+     *   <p>指定された値と等しい値を持つ最初の（添字の一番小さい）要素の添字を返します。もし見つからなかったら -1 を返します</p>
      *
      * @param {*}      search
      * @param {Number} [from]
@@ -451,6 +462,8 @@ Clay || (function(win, doc, loc) {
     /**
      * Array#lastIndexOf
      * @see https://developer.mozilla.org/en/JavaScript/Reference/Global_Objects/Array/lastIndexOf
+     * @description
+     *   <p>指定された値と等しい値を持つ最後の （添字の一番大きい）要素の添字を返します。もし見つからなかったら -1 を返します</p>
      *
      * @param {*}      search
      * @param {Number} from
@@ -461,7 +474,7 @@ Clay || (function(win, doc, loc) {
         if (iz === 0) {
           return -1;
         }
-        if (arguments.length > 0) {
+        if (arguments.length > 1) {
             i = ~~from;
             if (i !== i) {
                 i = 0;
@@ -1072,7 +1085,6 @@ Clay || (function(win, doc, loc) {
     // @ie67-
     if ( ENV.IE67 ) {
         win.XDomainRequest = AdaptiveIE67XDR;
-        Node.prototype.getElementsByClassName = AdaptiveGetElementsByClassName;
     }
     /**
      * IE67を対象にXDomainRequestを埋める
@@ -1236,16 +1248,16 @@ Clay || (function(win, doc, loc) {
 
         // IE678は XXtachEvent, それ以外は XXXEventListener
         if (ENV.IE678) {
-            if (!remove) {
-                target.attachEvent('on'+type,  evaluator);
-            } else {
+            if (remove) {
                 target.detachEvent('on'+type,  evaluator);
+            } else {
+                target.attachEvent('on'+type,  evaluator);
             }
         } else {
-            if (!remove) {
-                target.addEventListener(type, evaluator, !!bubble);
-            } else {
+            if (remove) {
                 target.removeEventListener(type, evaluator, !!bubble);
+            } else {
+                target.addEventListener(type, evaluator, !!bubble);
             }
         }
     }
@@ -1340,7 +1352,7 @@ Clay || (function(win, doc, loc) {
             b = bubble || false,
             c = cancel || true;
 
-        if (typeof type !== 'string') {
+        if (IsType(type) !== 'string') {
             orgEvent = type;
             type = orgEvent.type;
         }
