@@ -73,8 +73,8 @@
                 top      : initialPosition.top
             });
 
-            var initialOffsetX  = e.layerX,
-                initialOffsetY  = e.layerY;
+            var initialOffsetX  = e.offsetX || e.layerX,
+                initialOffsetY  = e.offsetY || e.layerY;
 
             handlers.move && handlers.move.call(elm, e);
 
