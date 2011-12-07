@@ -1,5 +1,5 @@
 /**
- * Clayworks
+ * Clayworks.js
  * 粘土こねこね
  *
  * Copyright (c) 2011 Ayumu Sato ( http://havelog.ayumusato.com )
@@ -108,6 +108,8 @@ Clay || (function(win, doc, loc) {
             shake   : shake,
             fill    : fill,
             str2dom : stringToDomElement
+            // @todo issue: ウインドウサイズや座標などのクロスブラウザメソッドを生やす
+            // @todo issue: フォームの値をPOST用のObjectにするなど
         }
     });
 
@@ -164,14 +166,18 @@ Clay || (function(win, doc, loc) {
         INCREMENT_CUSTOMDATA_ATTRIBUTES = 0,
 
         MODULE_LOAD_REMAINING    = 0,
-        MODULE_LOAD_DEPENDENCIES = {};
+        MODULE_LOAD_DEPENDENCIES = {},
+
+        RESERVED_DATASET_NAME  = '__cw_dataset__',
+        RESERVED_EVENT_NAME    = '__cw_event__',
+        RESERVED_DELEGETE_NAME = '__cw_delegate__';
 
     /**
      * 内部スタック
      */
     var STACK_READY_HANDLERS  = [],
         STACK_PUBSUB_HANDLERS = {},
-        MODULE_LOAD_CALLBACKS = [];
+        STACK_LOAD_CALLBACKS  = [];
 
     /**
      * 内部キャッシュ
@@ -520,7 +526,7 @@ Clay || (function(win, doc, loc) {
      * @return {Array}
      */
     function ArrayElementLoop(func) {
-        var i = 0, item, args = toArray(arguments, 1),
+        var i = 0, item, args = toArray(arguments).slice(1),
             rv, rvAry = [];
         while (item = this[i++]) {
             if (item.nodeType && item.nodeType === Node.ELEMENT_NODE) {
@@ -570,10 +576,9 @@ Clay || (function(win, doc, loc) {
      * ArrayLike(NodeList, HTMLCollection)なObjectを，Arrayに変換
      *
      * @param {Object} list
-     * @param {Number} [i]
      */
-    function toArray(list, i) {
-        return Array.prototype.slice.call(list, (i === void 0) ? 0 : i);
+    function toArray(list) {
+        return Array.prototype.slice.call(list);
     }
 
     /**
@@ -610,9 +615,15 @@ Clay || (function(win, doc, loc) {
      */
     function stringToDomElement(html, root) {
         root = root || doc;
-        var range = root.createRange();
-        range.selectNodeContents(root.body);
-        return range.createContextualFragment(html);
+        if (ENV.IE678) {
+            var ph = root.createElement('div');
+            ph.innerHTML = html;
+            return ph.firstChild;
+        } else {
+            var range = root.createRange();
+            range.selectNodeContents(root.body);
+            return range.createContextualFragment(html);
+        }
     }
 
     //==================================================================================================================
@@ -673,7 +684,7 @@ Clay || (function(win, doc, loc) {
     }
 
     // ショートハンドを合成
-    shake(Claylump.prototype, {
+    Claylump.prototype = {
         on      : ClayFinkelize(EventOn),
         off     : ClayFinkelize(EventOff),
         emit    : ClayFinkelize(EventEmit),
@@ -705,7 +716,7 @@ Clay || (function(win, doc, loc) {
         closest : ClayFinkelize(FindClosest),
         next    : ClayFinkelize(FindNext),
         prev    : ClayFinkelize(FindPrev)
-    });
+    };
 
     /**
      * 部分適用
@@ -717,11 +728,11 @@ Clay || (function(win, doc, loc) {
         function _finkelize() {
             var i = 0, elms = this._elms, elm;
 
-            this._rv = new Array[elms.length];
+            this._rv = [];
             this.rewind();
 
             while (elm = elms[i++]) {
-                this._rv[i] = func.apply(this, [elm].concat(toArray(arguments)));
+                this._rv.push(func.apply(this, [elm].concat(toArray(arguments))));
             }
             return this;
         }
@@ -837,7 +848,7 @@ Clay || (function(win, doc, loc) {
     function KNEAD_ModuleResolver(modules, callback) {
         modules = (typeof modules === 'string') ? [modules] : modules;
 
-        MODULE_LOAD_CALLBACKS.push(callback);
+        STACK_LOAD_CALLBACKS.push(callback);
         ModuleListLoader(modules);
     }
 
@@ -920,11 +931,11 @@ Clay || (function(win, doc, loc) {
         function _junction() {
             MODULE_LOAD_REMAINING--;
             if (0 === MODULE_LOAD_REMAINING) {
-                var i, iz = MODULE_LOAD_CALLBACKS.length >>> 0;
+                var i, iz = STACK_LOAD_CALLBACKS.length >>> 0;
                 for (i = iz; i--;) {
-                    ReadyHandler(MODULE_LOAD_CALLBACKS[i]);
+                    ReadyHandler(STACK_LOAD_CALLBACKS[i]);
                 }
-                MODULE_LOAD_CALLBACKS = [];
+                STACK_LOAD_CALLBACKS = [];
             }
         }
     }
@@ -966,11 +977,13 @@ Clay || (function(win, doc, loc) {
      * @return {Object}
      */
     function EnvironmentDetector() {
+        // @todo issue: mobile browser判定
+        // @todo issue: ゲーム機類の判定
         // @todo issue: 単純なRegExp#testとString#indexOfに分解して再構成
         var ua     = navigator.userAgent.toUpperCase(),
             RE_RENDERRING_ENGINE = /(TRIDENT|WEBKIT|GECKO|PRESTO)\/([\d\.]+)/,
-            RE_MOBILE_DEVICE     = /(?=ANDROID).+(MOBILE)|(ANDROID|IPAD|IPHONE|IPOD|BLACKBERRY|WINDOWS PHONE)/,
-            RE_MOBILE_OS         = /(BLACKBERRY\d+|WINDOWS PHONE OS|ANDROID|[IPHONE ]?OS)[\s\/]([\d\._]+)/,
+            RE_MOBILE_DEVICE     = /(?=ANDROID).+(MOBILE)|(ANDROID|IPAD|IPHONE|IPOD|BLACKBERRY|WINDOWS PHONE|WEBOS)/,
+            RE_MOBILE_OS         = /(ANDROID|[IPHONE ]?OS|BLACKBERRY\d+|WINDOWS PHONE OS|WEBOS)[\s\/]([\d\._]+)/,
             RE_DESKTOP_BROWSER   = /(CHROME|OPERA|IE|FIREFOX|VERSION)[\/\s]([\d\.]+)/,
             RE_DESKTOP_OS        = /(WINDOWS|MAC|LINUX)[\sA-Z;]+([\d\._]+)/,
             matches,
@@ -995,6 +1008,7 @@ Clay || (function(win, doc, loc) {
                 IOS     : false,
                 WINPHONE: false,
                 BBERRY  : false,
+                WEBOS   : false,
 
                 WINDOWS : false,
                 LINUX   : false,
@@ -1013,8 +1027,8 @@ Clay || (function(win, doc, loc) {
             rv[matches[1]] = parseFloat(matches[2]);
         }
 
-        // mobile? or desktop?
         if (matches = ua.match(RE_MOBILE_DEVICE)) {
+            // [Mobile device sequence]
 
             // device type
             if (!matches[1] && matches[2] === 'ANDROID' || matches[2] === 'IPAD') {
@@ -1031,9 +1045,11 @@ Clay || (function(win, doc, loc) {
                     case 'ANDROID'       : rv.ANDROID  = matches[2]; break;
                     case 'WINDOWS PHONE' : rv.WINPHONE = matches[2]; break;
                     case 'BLACKBERRY'    : rv.BBERRY   = matches[2]; break;
+                    case 'WEBOS'         : rv.WEBOS    = matches[2]; break;
                 }
             }
         } else {
+            // [Desktop device sequence]
 
             // device type
             rv.PC = true;
@@ -1134,6 +1150,7 @@ Clay || (function(win, doc, loc) {
 
     //==================================================================================================================
     // Event
+    // @todo issue: hover, change, submit の動作をlive含めてクロスブラウザ化
     /**
      * DOMイベントを定義
      *
@@ -1152,7 +1169,12 @@ Clay || (function(win, doc, loc) {
      */
     function EventDefine(target, type, expr, listener, bubble, remove) {
 
-        // DOM Level2 Event相当にノーマライズ
+        /**
+         * DOM Level2 Event相当にノーマライズ
+         *
+         * @param {Event} event
+         * @return {void}
+         */
         function _normalize(event) {
             var scopes, evtTarget, e, i = 0;
 
@@ -1178,13 +1200,10 @@ Clay || (function(win, doc, loc) {
                               event.button === 2 ? 3 :
                               event.button === 4 ? 2 : 1;
 
-                // pageX/Yを補填 @todo issue: elm.ownerDocument の参照に変える
+                // pageX/Yを補填
+                // @todo issue: elm.ownerDocument の参照に変える
                 event.pageX = event.clientX + doc.documentElement.scrollLeft;
                 event.pageY = event.clientY + doc.documentElement.scrollTop;
-
-                // geckoのlayerX/Yにあわせる
-                event.layerX = event.offsetX;
-                event.layerY = event.offsetY;
 
                 event.stopPropagation = function() {
                     event.cancelBubble = true;
@@ -1218,15 +1237,17 @@ Clay || (function(win, doc, loc) {
             }
         }
 
-        var evaluator, listeners, closures, i, iz;
+        var evaluator, listeners, closures, i, iz, recorder;
+
+        recorder = !!expr ? RESERVED_DELEGETE_NAME : RESERVED_EVENT_NAME;
 
         // 要素のイベント記録領域を初期化
-        target._event || (target._event = {
+        target[recorder] || (target[recorder] = {
             listener : {},
             closure  : {}
         });
-        listeners = target._event.listener[type] || ( target._event.listener[type] = [] );
-        closures  = target._event.closure[type]  || ( target._event.closure[type]  = [] );
+        listeners = target[recorder].listener[type] || (target[recorder].listener[type] = []);
+        closures  = target[recorder].closure[type]  || (target[recorder].closure[type]  = []);
 
         // 評価リスナを決定 & 記録
         if (!remove) {
@@ -1664,12 +1685,12 @@ Clay || (function(win, doc, loc) {
             var type = IsType(val), ident;
 
             if ( type !== 'string' && type !== 'number') {
-                elm._data || (elm._data = {});
+                elm[RESERVED_DATASET_NAME] || (elm[RESERVED_DATASET_NAME] = {});
 
                 ident = '__ident-'+INCREMENT_CUSTOMDATA_ATTRIBUTES++;
 
                 // _dataに本来のvalを格納
-                elm._data[ident] = val;
+                elm[RESERVED_DATASET_NAME][ident] = val;
 
                 // valをidentに差し替え
                 val = ident;
@@ -1684,7 +1705,7 @@ Clay || (function(win, doc, loc) {
                                       : elm.getAttribute('data-'+key.decamelize());
 
             if (rv.indexOf('__ident-') === 0) {
-                rv = elm._data[rv];
+                rv = elm[RESERVED_DATASET_NAME][rv];
             }
             return rv;
         }
@@ -1881,21 +1902,22 @@ Clay || (function(win, doc, loc) {
 
     /**
      * 指定した要素を複製して返す
-     * withEventがtrueのときイベントをクローンするが，liveイベントはクローンしない
+     * withEventがtrueのときイベントをクローンするが，delegateイベントはクローンしない
+     *
+     * @see http://d.hatena.ne.jp/uupaa/20100508/1273299874
      *
      * @param {Node}    elm
-     * @param {Boolean} withEvent
+     * @param {Boolean} [withEvent]
+     * @param {Boolean} [withData]
      * @return {Node}
      */
-    // @todo issue: liveイベントもcloneできるように，exprやbubbleをどこかに補完する？
-    // @todo issue: liveイベントがbindイベントに変化してコピーされてしまうので，Eventの領域を分ける必要がある
-    // @todo issue: 未完成
-    function ElementClone(elm, withEvent) {
-        if ( !ENV.IE678 ) {
-            var clone = elm.cloneNode(true), type, listeners, i, iz;
-            if (withEvent && elm._event) {
-                for (type in elm._event.listener) {
-                    listeners = elm._event.listener[type];
+    function ElementClone(elm, withEvent, withData) {
+
+        function _eventCopy(clone, evtrec) {
+            var type, i, iz, listeners;
+            for (type in evtrec) {
+                if (evtrec.hasOwnProperty(type)) {
+                    listeners = evtrec[type];
                     i  = 0;
                     iz = listeners.length;
                     for (; i<iz; i++) {
@@ -1903,14 +1925,37 @@ Clay || (function(win, doc, loc) {
                     }
                 }
             }
-            return clone;
-        } else {
-            for (var prop in elm) {
-                if (Object.hasOwnProperty.call(elm, prop)) {
-//                    alert(prop);
+        }
+
+        function _dataCopy(clone, datrec) {
+            var key;
+            for (key in datrec) {
+                if (datrec.hasOwnProperty(key)) {
+                    clone[RESERVED_DATASET_NAME] = datrec[key];
                 }
             }
         }
+
+        var clone, evtrec, datrec;
+
+        evtrec = elm[RESERVED_EVENT_NAME].listener;
+        datrec = elm[RESERVED_DATASET_NAME];
+
+        if ( ENV.IE678 ) {
+            clone = stringToDomElement(elm.cloneNode(true).outerHTML);
+        } else {
+            clone = elm.cloneNode(true);
+        }
+
+        if (withEvent && evtrec) {
+            _eventCopy(clone, evtrec);
+        }
+
+        if (withData && datrec) {
+            _dataCopy(clone, datrec);
+        }
+
+        return clone;
     }
 
     //==================================================================================================================
@@ -1932,17 +1977,13 @@ Clay || (function(win, doc, loc) {
      * @return {Array}
      */
     function FindChildren(elm) {
-        if (elm.children) {
-            return toArray(elm.children);
-        } else {
-            var list = elm.childNodes, i = 0, rv = [], e;
-            while (e = list[i++]) {
-                if (e.nodeType === Node.ELEMENT_NODE) {
-                    rv.push(e);
-                }
+        var list = elm.childNodes, i = 0, rv = [], e;
+        while (e = list[i++]) {
+            if (e.nodeType === Node.ELEMENT_NODE) {
+                rv.push(e);
             }
-            return rv;
         }
+        return rv;
     }
 
     /**
@@ -2066,6 +2107,11 @@ Clay || (function(win, doc, loc) {
         }
         xhr.onreadystatechange = _readyStateChange;
 
+        /**
+         * XHRの状態監視
+         *
+         * return {void}
+         */
         function _readyStateChange() {
             if (xhr.readyState === 4) {
                 var statusCode  = xhr.status.toString(),
@@ -2173,6 +2219,12 @@ Clay || (function(win, doc, loc) {
         script.type = 'text/javascript';
         script.src  = path + '&' + specifier + '=' + callbackname;
 
+        /**
+         * JSONP受け取りクロージャ
+         *
+         * @param json
+         * @return {void}
+         */
         // @todo issue: onloadとonerrorのコールバックを指定可能にする
         function _jsonpClosure(json) {
             callback(json);
