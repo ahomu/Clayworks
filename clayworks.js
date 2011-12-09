@@ -82,7 +82,6 @@ Clay || (function(win, doc, loc) {
 
             empty   : ElementEmpty,     // *1
             remove  : ElementRemove,    // *1
-
             swap    : ElementSwap,      // *1
             clone   : ElementClone      // *1
         }),
@@ -635,7 +634,13 @@ Clay || (function(win, doc, loc) {
      * @param {String} expr
      */
     function ClaylumpFactory(expr) {
-        return new Claylump(ElementSelector(expr));
+        var elms;
+        if (IsType(expr) === 'string') {
+            elms = ElementSelector(expr);
+        } else {
+            elms = expr;
+        }
+        return new Claylump(elms);
     }
 
     /**
@@ -652,12 +657,10 @@ Clay || (function(win, doc, loc) {
         var i = 0, iz = elms.length, that = this;
 
         this._elms    = elms;
-        this._rv      = [];
         this.next     = _lumpNext;
         this.hasNext  = _lumpHasNext;
         this.rewind   = _lumpRewind;
         this.current  = _lumpCurrent;
-        this.ret      = _lumpChainEnd;
         this.i        = _lumpIndex;
 
         function _lumpNext() {
@@ -674,9 +677,6 @@ Clay || (function(win, doc, loc) {
         }
         function _lumpCurrent() {
             return that._elms[i];
-        }
-        function _lumpChainEnd() {
-            return that._rv;
         }
         function _lumpIndex(i) {
             return that._elms[i];
@@ -720,21 +720,24 @@ Clay || (function(win, doc, loc) {
 
     /**
      * 部分適用
-     * 
+     *
      * @this {Claylump}
      * @param func
      */
     function ClayFinkelize(func) {
         function _finkelize() {
-            var i = 0, elms = this._elms, elm;
+            var i = 0, elms = this._elms, elm, rv, rvAry = [];
 
-            this._rv = [];
             this.rewind();
 
             while (elm = elms[i++]) {
-                this._rv.push(func.apply(this, [elm].concat(toArray(arguments))));
+                rv = func.apply(this, [elm].concat(toArray(arguments)));
+                rv !== void 0 && rvAry.push(rv);
             }
-            return this;
+            // rvAry.lengthが0でなければ結果をreturnする : 配列の長さが1なら，配列を解除して返す
+            // rvAry.lengthが0であれば，thisを返してチェーンを継続する
+            return rvAry.length !== 0 ? (rvAry.length === 1 ? rvAry[0] : rvAry)
+                                      : this;
         }
         return _finkelize;
     }
@@ -1812,6 +1815,11 @@ Clay || (function(win, doc, loc) {
             }
         }
 
+        // @todo issue: 複数要素に対応する？
+        if (addElm instanceof Claylump) {
+            addElm = addElm._elms[0];
+        }
+
         if (html !== void 0) {
             range = elm.ownerDocument.createRange();
             range['setStart'+(where.indexOf('End') !== -1 ? 'After' : 'Before')](elm);
@@ -1931,7 +1939,7 @@ Clay || (function(win, doc, loc) {
             var key;
             for (key in datrec) {
                 if (datrec.hasOwnProperty(key)) {
-                    clone[RESERVED_DATASET_NAME] = datrec[key];
+                    clone[RESERVED_DATASET_NAME][key] = datrec[key];
                 }
             }
         }
