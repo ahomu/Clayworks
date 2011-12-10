@@ -56,15 +56,15 @@ Clay || (function(win, doc, loc) {
         fetch   : ModuleFetcher,
         depend  : ModuleDepender,
 
-        Env     : EnvironmentDetector(),
-        Event   : shake(EventDefine,{
+        env     : EnvironmentDetector(),
+        event   : shake(EventDefine,{
             on      : EventOn,          // *1
             off     : EventOff,         // *1
             emit    : EventEmit,        // *1
             pub     : EventPublish,
             sub     : EventSubscribe
         }),
-        Elem    : shake(ElementSelector,{
+        element : shake(ElementSelector,{
             clazz   : ElementClass,     // *1
             css     : ElementStyle,     // *1
             attr    : ElementAttribute, // *1
@@ -83,9 +83,13 @@ Clay || (function(win, doc, loc) {
             empty   : ElementEmpty,     // *1
             remove  : ElementRemove,    // *1
             swap    : ElementSwap,      // *1
-            clone   : ElementClone      // *1
+            clone   : ElementClone,     // *1
+
+            absrect : ElementAbsRectPos,// *1
+            relrect : ElementRelRectPos,// *1
+            center  : ElementSetCenter  // *1
         }),
-        Find    : {
+        find    : {
             parent  : FindParent,       // *1
             children: FindChildren,     // *1
             siblings: FindSiblings,     // *1
@@ -93,24 +97,36 @@ Clay || (function(win, doc, loc) {
             next    : FindNext,         // *1
             prev    : FindPrev          // *1
         },
-        Http    : shake(NetHttp,{
+        http    : shake(NetHttp,{
             get     : NetHttpGet,
             post    : NetHttpPost,
             jsonp   : NetHttpJSONP
         }),
-        Widget  : {
+        widget  : {
             tmpl    : WidgetBuildTemplate
         },
-        Util    : {
+        util    : {
             toarray : toArray,
             istype  : IsType,
             shake   : shake,
             fill    : fill,
-            str2dom : stringToDomElement
-            // @todo issue: ウインドウサイズや座標などのクロスブラウザメソッドを生やす
+            str2dom : stringToDomElement,
+            size    : {
+                viewport : getViewportSize,
+                document : getDocumentSize,
+                window   : getWindowSize
+            },
+            pos     : {
+                window   : getWindowPosition,
+                scroll   : getScrollPosition
+            }
             // @todo issue: フォームの値をPOST用のObjectにするなど
         }
     });
+
+    // alias
+    Clay.evt = Clay.event;
+    Clay.elm = Clay.element;
 
     /**
      * コアJavaScriptのprototype拡張マップ
@@ -144,7 +160,7 @@ Clay || (function(win, doc, loc) {
      * 内部いろいろ変数
      */
     var HEAD = doc.getElementsByTagName('head')[0],
-        ENV  = Clay.Env,
+        ENV  = Clay.env,
 
         BASE_URL    = loc.protocol+'//'+loc.host+loc.pathname.replace(/[a-z-_.]+$/i, ''),
         SCRIPT_ROOT = (function() {
@@ -167,9 +183,10 @@ Clay || (function(win, doc, loc) {
         MODULE_LOAD_REMAINING    = 0,
         MODULE_LOAD_DEPENDENCIES = {},
 
-        RESERVED_DATASET_NAME  = '__cw_dataset__',
-        RESERVED_EVENT_NAME    = '__cw_event__',
-        RESERVED_DELEGETE_NAME = '__cw_delegate__';
+        RESERVED_DATASET_STORE  = '__cw_dataset__',
+        RESERVED_EVENT_STORE    = '__cw_event__',
+        RESERVED_DELEGETE_STORE = '__cw_delegate__',
+        RESERVED_STYLE_STORE    = '__cw_style__';
 
     /**
      * 内部スタック
@@ -572,7 +589,7 @@ Clay || (function(win, doc, loc) {
     }
 
     /**
-     * ArrayLike(NodeList, HTMLCollection)なObjectを，Arrayに変換
+     * ArrayっぽいObject(NodeList, HTMLCollection)を，Arrayに変換
      *
      * @param {Object} list
      */
@@ -624,6 +641,98 @@ Clay || (function(win, doc, loc) {
             return range.createContextualFragment(html);
         }
     }
+
+    /**
+     * ウインドウのサイズを取得する
+     * @see http://help.dottoro.com/ljjrmtvx.php
+     *
+     * @return {Object}
+     */
+    function getWindowSize() {
+        var rv, d, cW, cH, fW, fH, tW, tH;
+        if ('outerWidth' in win) {
+            rv = {
+                width  : win.outerWidth,
+                height : win.outerHeight
+            };
+        } else {
+            d = doc.documentElement || doc.body;
+
+            cW = d.clientWidth;
+            cH = d.clientHeight;
+
+            win.resizeTo(cW, cH);
+
+            fW = cW - d.clientWidth;
+            fH = cH - d.clientHeight;
+            tW = cW + fW;
+            tH = cH + fH;
+
+            win.resizeTo(tW, tH);
+
+            // repair phase
+            if (cW != d.clientWidth || cH != d.clientHeight) {
+                fW = tW - d.clientWidth;
+                fH = tH - d.clientHeight;
+                tW = cW + fW;
+                tH = cH + fH;
+            }
+            rv = {
+                width  : tW,
+                height : tH
+            }
+        }
+        return rv
+    }
+
+    /**
+     * 表示領域のサイズを取得する
+     *
+     * @return {Object}
+     */
+    function getViewportSize() {
+        return {
+            width  : win.innerWidth  || doc.documentElement.clientWidth  || doc.body.clientWidth,
+            height : win.innerHeight || doc.documentElement.clientHeight || doc.body.clientHeight
+        }
+    }
+
+    /**
+     * ドキュメント領域のサイズを取得する
+     *
+     * @return {Object}
+     */
+    function getDocumentSize() {
+        return {
+            width  : doc.documentElement.scrollWidth  || doc.body.scrollWidth,
+            height : doc.documentElement.scrollHeight || doc.body.scrollHeight
+        }
+    }
+
+    /**
+     * ウインドウ位置を取得する
+     *
+     * @return {Object}
+     */
+    function getWindowPosition() {
+        return {
+            x : win.screenX || win.screenLeft,
+            y : win.screenY || win.screenTop
+        }
+    }
+
+    /**
+     * スクロール量を取得する
+     *
+     * @return {Object}
+     */
+    function getScrollPosition() {
+        return {
+            x : win.pageXOffset || doc.documentElement.scrollLeft || doc.body.scrollLeft,
+            y : win.pageYOffset || doc.documentElement.scrollTop  || doc.body.scrollTop
+        }
+    }
+
 
     //==================================================================================================================
     // Claylump
@@ -1242,7 +1351,7 @@ Clay || (function(win, doc, loc) {
 
         var evaluator, listeners, closures, i, iz, recorder;
 
-        recorder = !!expr ? RESERVED_DELEGETE_NAME : RESERVED_EVENT_NAME;
+        recorder = !!expr ? RESERVED_DELEGETE_STORE : RESERVED_EVENT_STORE;
 
         // 要素のイベント記録領域を初期化
         target[recorder] || (target[recorder] = {
@@ -1467,7 +1576,7 @@ Clay || (function(win, doc, loc) {
                     }
                 break;
                 default:
-                    event = doc.createEvent('Event');
+                    event = doc.createEvent('event');
                     event.initEvent(type, b, c);
                 break;
             }
@@ -1614,8 +1723,9 @@ Clay || (function(win, doc, loc) {
      */
     function ElementStyle(elm, key, val) {
 
-        elm._style || (elm._style = 'defaultView' in doc ? elm.ownerDocument.defaultView.getComputedStyle(elm, null)
-                                                         : elm.currentStyle);
+        elm[RESERVED_STYLE_STORE] || (elm[RESERVED_STYLE_STORE] = 'defaultView' in elm.ownerDocument
+                                                                ? elm.ownerDocument.defaultView.getComputedStyle(elm, null)
+                                                                : elm.currentStyle);
 
         if (arguments.length === 3) {
             // set property
@@ -1626,7 +1736,7 @@ Clay || (function(win, doc, loc) {
             switch (IsType(key)) {
                 // get property
                 case 'string':
-                    return elm._style[key];
+                    return elm[RESERVED_STYLE_STORE][key];
                 break;
                 // set properties
                 case 'object':
@@ -1638,7 +1748,7 @@ Clay || (function(win, doc, loc) {
                 break;
                 // get properties
                 case 'array':
-                    var styles = elm._style,
+                    var styles = elm[RESERVED_STYLE_STORE],
                         i = 0, rv = {};
                     while (k = key[i++]) {
                         styles[k] && (rv[k] = styles[k]);
@@ -1688,12 +1798,12 @@ Clay || (function(win, doc, loc) {
             var type = IsType(val), ident;
 
             if ( type !== 'string' && type !== 'number') {
-                elm[RESERVED_DATASET_NAME] || (elm[RESERVED_DATASET_NAME] = {});
+                elm[RESERVED_DATASET_STORE] || (elm[RESERVED_DATASET_STORE] = {});
 
                 ident = '__ident-'+INCREMENT_CUSTOMDATA_ATTRIBUTES++;
 
                 // _dataに本来のvalを格納
-                elm[RESERVED_DATASET_NAME][ident] = val;
+                elm[RESERVED_DATASET_STORE][ident] = val;
 
                 // valをidentに差し替え
                 val = ident;
@@ -1708,7 +1818,7 @@ Clay || (function(win, doc, loc) {
                                       : elm.getAttribute('data-'+key.decamelize());
 
             if (rv.indexOf('__ident-') === 0) {
-                rv = elm[RESERVED_DATASET_NAME][rv];
+                rv = elm[RESERVED_DATASET_STORE][rv];
             }
             return rv;
         }
@@ -1911,6 +2021,7 @@ Clay || (function(win, doc, loc) {
     /**
      * 指定した要素を複製して返す
      * withEventがtrueのときイベントをクローンするが，delegateイベントはクローンしない
+     * 子孫要素のイベント・データ類はクローンしない
      *
      * @see http://d.hatena.ne.jp/uupaa/20100508/1273299874
      *
@@ -1939,15 +2050,15 @@ Clay || (function(win, doc, loc) {
             var key;
             for (key in datrec) {
                 if (datrec.hasOwnProperty(key)) {
-                    clone[RESERVED_DATASET_NAME][key] = datrec[key];
+                    clone[RESERVED_DATASET_STORE][key] = datrec[key];
                 }
             }
         }
 
         var clone, evtrec, datrec;
 
-        evtrec = elm[RESERVED_EVENT_NAME].listener;
-        datrec = elm[RESERVED_DATASET_NAME];
+        evtrec = elm[RESERVED_EVENT_STORE].listener;
+        datrec = elm[RESERVED_DATASET_STORE];
 
         if ( ENV.IE678 ) {
             clone = stringToDomElement(elm.cloneNode(true).outerHTML);
@@ -1964,6 +2075,127 @@ Clay || (function(win, doc, loc) {
         }
 
         return clone;
+    }
+
+    /**
+     * 要素の表示領域内の絶対座標と，矩形の幅と高さを返す ( border-boxモデル )
+     * getBoundingClientRectの実装が必要
+     *
+     * @param {Node} elm
+     * @return {Object}
+     */
+    function ElementAbsRectPos(elm) {
+        var rect = elm.getBoundingClientRect(),
+            body = elm.ownerDocument.body;
+
+        if ((ENV.IE67 || ENV.IE8 && doc.documentMode < 8)/* && body === elm.parentNode*/) {
+            rect.top    -= 2;
+            rect.bottom -= 2;
+            rect.left   -= 2;
+            rect.right  -= 2;
+        }
+
+        return {
+            top    : rect.top,
+            bottom : rect.bottom,
+            left   : rect.left,
+            right  : rect.right,
+            width  : rect.width  || (rect.right  - rect.left),
+            height : rect.height || (rect.bottom - rect.top)
+        };
+    }
+
+    /**
+     * 要素の親要素との相対座標と，矩形の幅と高さを返す
+     *
+     * @param {Node} elm
+     * @param {Node} [parent]
+     * @return {Object}
+     */
+    function ElementRelRectPos(elm, parent) {
+        var crit = ElementAbsRectPos(parent || elm.parentNode),
+            self = ElementAbsRectPos(elm);
+
+        return {
+            top    : self.top    - crit.top,
+            bottom : crit.bottom - self.bottom,
+            left   : self.left   - crit.left,
+            right  : crit.right  - self.right
+        };
+    }
+
+    /**
+     * 要素を中央に配置する
+     * デフォルトはviewportに対しての中央
+     *
+     * @param {Node} elm
+     * @param {Node} [crit]
+     */
+    // @todo issue: ロジックの整理が必要
+    function ElementSetCenter(elm, crit) {
+        var self = ElementAbsRectPos(elm), from, to, xy,
+            pos = {}, fix = {}, relbase = false;
+
+        function _isRelative(elm) {
+            var e = elm, state;
+            while (e = e.parentNode) {
+                // documentに突き当たったら終了
+                if (e === doc) {
+                    return false;
+                }
+                state = ElementStyle(e, 'position');
+                if (state === 'absolute' || state === 'relative') {
+                    return e;
+                }
+            }
+            return false;
+        }
+
+        // critがあって，スタイルのtop, leftと座標が異なれば相対基準をチェック
+        xy = ElementStyle(elm, ['top', 'left']);
+        if (crit && self.top !== xy.top && self.left !== xy.left) {
+            relbase = _isRelative(elm);
+        }
+
+        // 相対基準がいるか？
+        if (relbase !== false) {
+            // 相対基準とcritは同一か？
+            if (crit && crit === relbase) {
+                // 1.相対座標でfix
+                to = ElementAbsRectPos(crit);
+
+                pos.left = (to.width  - self.width)  / 2 + 'px';
+                pos.top  = (to.height - self.height) / 2 + 'px';
+            } else {
+                // 2.relbaseとcritの座標をあわせて，矩形サイズの比較から中央を算出する -> noteみる
+                to   = ElementAbsRectPos(crit);
+                from = ElementAbsRectPos(relbase);
+
+                fix.top  = to.top  - from.top;
+                fix.left = to.left - from.left;
+
+                pos.left = (to.width  - self.width)  / 2 + fix.left + 'px';
+                pos.top  = (to.height - self.height) / 2 + fix.top  + 'px';
+            }
+        } else {
+            // critはあるか？
+            if (crit) {
+                // 3.単純に絶対座標同士でフィックス
+                to = ElementAbsRectPos(crit);
+
+                pos.left = (to.width  - self.width)  / 2 + to.left + 'px';
+                pos.top  = (to.height - self.height) / 2 + to.top  + 'px';
+            } else {
+                // 4.単純にviewportの中央にする
+                // @todo issue: スクロール量を加味できるようにする
+                to = getViewportSize();
+
+                pos.left = (to.width  - self.width)  / 2  + 'px';
+                pos.top  = (to.height - self.height) / 2  + 'px';
+            }
+        }
+
+        ElementStyle(elm, pos);
     }
 
     //==================================================================================================================

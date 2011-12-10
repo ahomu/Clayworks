@@ -37,7 +37,7 @@
                 fnc.call(elem, e);
             }
         }
-        c_.Event.on(elem, scope, 'keypress', _keyDetector);
+        c_.event.on(elem, scope, 'keypress', _keyDetector);
     }
 
     /**
@@ -56,11 +56,11 @@
         handlers = handlers || {};
 
         // @todo issue: ウインドウ外に出たときにイベント制御が手放されている
-        c_.Event.on(elm, 'mousedown', _draggingStart);
-        c_.Event.on(ownerDoc, 'mouseup', _draggingEnd);
+        c_.event.on(elm, 'mousedown', _draggingStart);
+        c_.event.on(ownerDoc, 'mouseup', _draggingEnd);
 
         // position:absoluteを強制
-        c_.Elem.css(elm, 'position', 'absolute');
+        c_.elm.css(elm, 'position', 'absolute');
 
         function _draggingStart(e) {
             // ドラッグ開始
@@ -68,7 +68,7 @@
 
             // 初期位置を保持＆明示
             initialPosition = elm.getBoundingClientRect();
-            c_.Elem.css(elm, {
+            c_.elm.css(elm, {
                 left     : initialPosition.left,
                 top      : initialPosition.top
             });
@@ -83,7 +83,7 @@
                 var movingX = e.pageX - initialOffsetX,
                     movingY = e.pageY - initialOffsetY;
 
-                c_.Elem.css(elm, {
+                c_.elm.css(elm, {
                     top     : movingY+'px',
                     left    : movingX+'px'
                 });
@@ -95,7 +95,7 @@
                 // -ie678@
             };
             // ドラッグ動作開始
-            c_.Event.on(ownerDoc, 'mousemove', dragClosure);
+            c_.event.on(ownerDoc, 'mousemove', dragClosure);
 
             // mousedownによる文字列選択を抑止
             e.preventDefault();
@@ -106,7 +106,7 @@
             if (!!dragging) {
                 dragging = false;
 
-                c_.Event.off(ownerDoc, 'mousemove', dragClosure);
+                c_.event.off(ownerDoc, 'mousemove', dragClosure);
                 handlers.end && handlers.end.call(elm, e, initialPosition.left, initialPosition.top);
             }
         }
