@@ -95,7 +95,9 @@ Clay || (function(win, doc, loc) {
             siblings: FindSiblings,     // *1
             closest : FindClosest,      // *1
             next    : FindNext,         // *1
-            prev    : FindPrev          // *1
+            prev    : FindPrev,         // *1
+            decedants: FindDescendants, // *1
+            ancestors: FindAncestors    // *1
         },
         http    : shake(NetHttp,{
             get     : NetHttpGet,
@@ -106,8 +108,14 @@ Clay || (function(win, doc, loc) {
             tmpl    : WidgetBuildTemplate
         },
         util    : {
-            toarray : toArray,
-            istype  : IsType,
+            isArray : toArray,
+            isType  : IsType,
+//            isNumeric: IsNumeric,
+//            isNumber: IsNumber,
+//            isString: IsString,
+//            isElement: IsElement,
+//            isFunction: IsFunction,
+//            isArray: isArray
             shake   : shake,
             fill    : fill,
             str2dom : stringToDomElement,
@@ -119,6 +127,9 @@ Clay || (function(win, doc, loc) {
             pos     : {
                 window   : getWindowPosition,
                 scroll   : getScrollPosition
+            },
+            form    : {
+                toObj     : getFormData
             }
             // @todo issue: フォームの値をPOST用のObjectにするなど
         }
@@ -305,7 +316,7 @@ Clay || (function(win, doc, loc) {
             if (i === 0) {
                 rv += chunks[i].toLowerCase();
             } else {
-                rv += chunks[i].substr(0, 1).toUpperCase() + chunks[i].substr(1).toLowerCase();
+                rv += chunks[i].charAt(0).toUpperCase() + chunks[i].substr(1).toLowerCase();
             }
         }
         return rv;
@@ -604,6 +615,7 @@ Clay || (function(win, doc, loc) {
      * @param {String}  [assert]
      * @return {String|Boolean}
      */
+    // @todo issue: PS3で動いていない？
     // @todo issue: isString, isArrayなどに分解する（＆簡潔な判定にする）
     function IsType(mixed, assert) {
         if (Object.prototype.toString.call(mixed).match(RE_TYPE_DETECT)) {
@@ -733,6 +745,59 @@ Clay || (function(win, doc, loc) {
         }
     }
 
+    /**
+     * フォーム内のインプットパーツのvalueをObjectとして取得する
+     *
+     * @param {Node} form
+     * @return {Object}
+     */
+    // @todo issue: form.elementsのHTMLCollectionにtype:imageは含まれない
+    function getFormData(form) {
+        if (form.tagName !== 'FORM') {
+            throw new TypeError('Argument must be HTMLFormElement.');
+        }
+
+        var elms = toArray(form.elements),
+            e, i = 0, k, pos, isAry, name, val, stack = {}, rv = {};
+
+        while (e = elms[i++]) {
+            // 無効・未チェックの項目はスキップ
+            if (
+                e.disabled === true ||
+                e.type === 'radio'    && e.checked === false ||
+                e.type === 'checkbox' && e.checked === false ||
+                0
+            ) {
+                continue;
+            }
+
+            pos  = e.name.indexOf('[');
+            name = pos !== -1 ? e.name.substr(0, pos) : e.name;
+            val  = e.value;
+
+            if (pos !== -1) {
+                isAry = true;
+                stack[name] === void 0 && (stack[name] = 0);
+            } else {
+                isAry = false;
+            }
+
+            if (IsType(val) === 'string') {
+                if (isAry) {
+                    rv[name + '[' + (stack[name]++) + ']'] = val;
+                } else {
+                    rv[name] = val;
+                }
+            } else {
+                for (k in val) {
+                    if (val.hasOwnProperty(k)) {
+                        rv[name + '[' + (stack[name]++) + ']'] = val[k];
+                    }
+                }
+            }
+        }
+        return rv;
+    }
 
     //==================================================================================================================
     // Claylump
@@ -819,12 +884,18 @@ Clay || (function(win, doc, loc) {
         swap    : ClayFinkelize(ElementSwap),
         clone   : ClayFinkelize(ElementClone),
 
+        absrect : ClayFinkelize(ElementAbsRectPos),
+        relrect : ClayFinkelize(ElementRelRectPos),
+        center  : ClayFinkelize(ElementSetCenter),
+
         parent  : ClayFinkelize(FindParent),
         children: ClayFinkelize(FindChildren),
         siblings: ClayFinkelize(FindSiblings),
         closest : ClayFinkelize(FindClosest),
         next    : ClayFinkelize(FindNext),
-        prev    : ClayFinkelize(FindPrev)
+        prev    : ClayFinkelize(FindPrev),
+        decendants: ClayFinkelize(FindDescendants),
+        ancestors : ClayFinkelize(FindAncestors)
     };
 
     /**
@@ -935,7 +1006,7 @@ Clay || (function(win, doc, loc) {
                 always(Clay);
             }
             for (needle in evals) {
-                if (evals.hasOwnProperty(needle) && loc.pathname.match(evals[needle])) {
+                if (evals.hasOwnProperty(needle) && path.match(evals[needle])) {
                     RegExp.$1 && (args[params[needle]] = RegExp.$1);
                     conditions[needle](Clay, args);
                 }
@@ -975,7 +1046,7 @@ Clay || (function(win, doc, loc) {
         if (CACHE_MODULE[path]) {
             return CACHE_MODULE[path];
         } else {
-            throw new ReferenceError();
+            throw new ReferenceError('Specified module have not load yet.');
         }
     }
 
@@ -1098,6 +1169,7 @@ Clay || (function(win, doc, loc) {
             RE_MOBILE_OS         = /(ANDROID|[IPHONE ]?OS|BLACKBERRY\d+|WINDOWS PHONE OS|WEBOS)[\s\/]([\d\._]+)/,
             RE_DESKTOP_BROWSER   = /(CHROME|OPERA|IE|FIREFOX|VERSION)[\/\s]([\d\.]+)/,
             RE_DESKTOP_OS        = /(WINDOWS|MAC|LINUX)[\sA-Z;]+([\d\._]+)/,
+            RE_GAME_DEVICE       = /(PLAYSTATION 3|PSP \(PlayStation Portable\))[;\s]+([\d\.]+)/,
             matches,
             rv    = {
                 TRIDENT : false,
@@ -1126,12 +1198,18 @@ Clay || (function(win, doc, loc) {
                 LINUX   : false,
                 MAC     : false,
 
+                PS3     : false,
+                PSP     : false,
+
                 PC      : false,
                 PHONE   : false,
                 TABLET  : false,
+                GAME    : false,
 
                 WEBAPP  : ('standalone' in window.navigator && window.navigator.standalone) ? true : false,
-                SSL     : loc.protocol === 'https:'
+                SSL     : loc.protocol === 'https:',
+
+                F_ADE   : !!doc.addEventListener
             };
 
         // rendering engine
@@ -1160,7 +1238,21 @@ Clay || (function(win, doc, loc) {
                     case 'WEBOS'         : rv.WEBOS    = matches[2]; break;
                 }
             }
-        } else {
+        }
+        else if (matches = ua.match(RE_GAME_DEVICE)) {
+            // [Game device sequence]
+
+            // device type
+            rv.GAME = true;
+
+            // device platform
+            matches[2] = parseFloat(matches[2]);
+            switch (matches[1]) {
+                case 'PLAYSTATION 3'              : rv.PS3 = matches[2]; break;
+                case 'PSP (PlayStation Portable)' : rv.PSP = matches[2]; break;
+            }
+        }
+        else {
             // [Desktop device sequence]
 
             // device type
@@ -1184,6 +1276,7 @@ Clay || (function(win, doc, loc) {
             }
         }
 
+//alert(ua.indexOf('PSP'));
         return rv;
     }
 
@@ -1379,18 +1472,19 @@ Clay || (function(win, doc, loc) {
             }
         }
 
-        // IE678は XXtachEvent, それ以外は XXXEventListener
-        if (ENV.IE678) {
-            if (remove) {
-                target.detachEvent('on'+type,  evaluator);
-            } else {
-                target.attachEvent('on'+type,  evaluator);
-            }
-        } else {
+        if (ENV.F_ADE) {
+            // addEventListenerを使えれば使う
             if (remove) {
                 target.removeEventListener(type, evaluator, !!bubble);
             } else {
                 target.addEventListener(type, evaluator, !!bubble);
+            }
+        } else {
+            // レガシーIE, PS3
+            if (remove) {
+                target.detachEvent('on'+type,  evaluator);
+            } else {
+                target.attachEvent('on'+type,  evaluator);
             }
         }
     }
@@ -1649,8 +1743,7 @@ Clay || (function(win, doc, loc) {
         } else {
             rv = SelectorByQuery(context, expr);
         }
-
-        return (rv && rv.length !== void 0) ? toArray(rv) : rv;
+        return (rv && rv.length !== void 0 && rv.tagName !== 'FORM') ? toArray(rv) : rv;
     }
 
     function SelectorById (context, id) {
@@ -2202,28 +2295,54 @@ Clay || (function(win, doc, loc) {
     // Find
     /**
      * 指定した要素の親要素を返す
+     * r オプションで再帰処理 (BODYで止める)
      *
      * @param {Node} elm
+     * @param {Boolean} r
      * @return {Node}
      */
-    function FindParent(elm) {
-        return elm.parentNode;
+    function FindParent(elm, r) {
+        if (!r) {
+            return elm.parentNode;
+        } else {
+            var e = elm, rv = [];
+            while (e = e.parentNode) {
+                rv.push(e);
+                if (e.tagName === 'BODY') {
+                    break;
+                }
+            }
+            return rv;
+        }
     }
 
     /**
      * 指定した要素の子要素を返す
+     * r オプションで再帰処理
      *
      * @param {Node} elm
+     * @param {Boolean} r
      * @return {Array}
      */
-    function FindChildren(elm) {
+    function FindChildren(elm, r) {
         var list = elm.childNodes, i = 0, rv = [], e;
         while (e = list[i++]) {
             if (e.nodeType === Node.ELEMENT_NODE) {
                 rv.push(e);
+                if (r && e.childNodes) {
+                    rv = rv.concat(FindChildren(e, true));
+                }
             }
         }
         return rv;
+    }
+
+    function FindDescendants(elm) {
+        return FindChildren(elm, true);
+    }
+
+    function FindAncestors(elm) {
+        return FindParent(elm, true);
     }
 
     /**
@@ -2521,19 +2640,29 @@ Clay || (function(win, doc, loc) {
     }
 
     function _readyStateTest() {
-        // @todo issue: PS3のloadedは拾ってはいけない？
         if (/^(loaded|complete)$/.test(doc.readyState)) {
             _readyStackExec();
             EventOff(doc, 'readystatechange', _readyStateTest);
         }
     }
 
-    // @todo issue: DOMContentLoadedの判定フラグが必要
-    if (doc.addEventListener) {
+    // DomContentLoaded利用可能ブラウザ
+    if (
+        ENV.IOS     ||
+        ENV.ANDROID ||
+        ENV.CHROME  ||
+        ENV.FIREFOX ||
+        ENV.IE >= 9 ||
+        ENV.SAFARI  ||
+        ENV.OPERA
+    ) {
         EventOn(doc, 'DOMContentLoaded', _readyStackExec);
     }
     else if (doc.readyState) {
         EventOn(doc, 'readystatechange', _readyStateTest);
+    }
+    else {
+        EventOn(doc, 'load', _readyStackExec);
     }
 
 })(window, document, location);
