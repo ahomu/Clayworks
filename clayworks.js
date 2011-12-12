@@ -96,8 +96,8 @@ Clay || (function(win, doc, loc) {
             closest : FindClosest,      // *1
             next    : FindNext,         // *1
             prev    : FindPrev,         // *1
-            descendants: FindDescendants, // *1
-            ancestors  : FindAncestors    // *1
+            descendants: FindDescendants,//*1
+            ancestors  : FindAncestors   //*1
         },
         http    : shake(NetHttp,{
             get     : NetHttpGet,
@@ -108,17 +108,42 @@ Clay || (function(win, doc, loc) {
             tmpl    : WidgetBuildTemplate
         },
         util    : {
-            isArray : toArray,
-            isType  : IsType,
-//            isNumeric: IsNumeric,
-//            isNumber: IsNumber,
-//            isString: IsString,
-//            isElement: IsElement,
-//            isFunction: IsFunction,
-//            isArray: isArray
             shake   : shake,
             fill    : fill,
             str2dom : stringToDomElement,
+            toArray : toArray,
+            is      : shake(isType, {
+                string   : isString,
+                number   : isNumber,
+                array    : isArray,
+                object   : isObject,
+                regexp   : isRegexp,
+                date     : isDate,
+                nil      : isNull,
+                undef    : isUndefined,
+                callable : isFunction,
+                bool     : isBoolean,
+                error    : isError,
+                element  : isElement,
+                numeric  : isNumeric,
+                lump     : isClaylump
+            }),
+            assert  : {
+                string   : assertString,
+                number   : assertNumber,
+                array    : assertArray,
+                object   : assertObject,
+                regexp   : assertRegexp,
+                date     : assertDate,
+                nil      : assertNull,
+                undef    : assertUndefined,
+                callable : assertFunction,
+                bool     : assertBoolean,
+                error    : assertError,
+                element  : assertElement,
+                numeric  : assertNumeric,
+                lump     : assertClaylump
+            },
             size    : {
                 viewport : getViewportSize,
                 document : getDocumentSize,
@@ -196,7 +221,27 @@ Clay || (function(win, doc, loc) {
         RESERVED_DATASET_STORE  = '__cw_dataset__',
         RESERVED_EVENT_STORE    = '__cw_event__',
         RESERVED_DELEGETE_STORE = '__cw_delegate__',
-        RESERVED_STYLE_STORE    = '__cw_style__';
+        RESERVED_STYLE_STORE    = '__cw_style__',
+
+        TYPEOF_STRING    = '[object String]',
+        TYPEOF_NUMBER    = '[object Number]',
+        TYPEOF_ARRAY     = '[object Array]',
+        TYPEOF_OBJECT    = '[object Object]',
+        TYPEOF_REGEXP    = '[object RegExp]',
+        TYPEOF_DATE      = '[object Date]',
+        TYPEOF_NULL      = '[object Null]',
+        TYPEOF_UNDEFINED = '[object Undefined]',
+        TYPEOF_FUNCTION  = '[object Function]',
+        TYPEOF_BOOLEAN   = '[object Boolean]',
+        TYPEOF_ERROR     = '[object Error]',
+
+        TYPEOF_CLAYLUMP  = '[object Claylump]'
+    ;
+
+    /**
+     * 関数エイリアス
+     */
+    var ALIAS_toString = Object.prototype.toString;
 
     /**
      * 内部スタック
@@ -347,7 +392,7 @@ Clay || (function(win, doc, loc) {
      * @return {Array}
      */
     function ArrayFilter(callback, thisArg) {
-        IsType(callback, 'function');
+        assertFunction(callback);
 
         var O = Object(this), i = 0, iz = O.length >>> 0, that = (thisArg || this), rv = [], val;
 
@@ -374,7 +419,7 @@ Clay || (function(win, doc, loc) {
      * @return {void}
      */
     function ArrayForEach(callback, thisArg) {
-        IsType(callback, 'function');
+        assertFunction(callback);
 
         var O = Object(this), i = 0, iz = O.length >>> 0, that = (thisArg || this);
 
@@ -397,7 +442,7 @@ Clay || (function(win, doc, loc) {
      * @return {Boolean}
      */
     function ArrayEvery(callback , thisArg) {
-        IsType(callback, 'function');
+        assertFunction(callback);
 
         var O = Object(this), i = 0, iz = O.length >>> 0, that = (thisArg || this);
 
@@ -421,7 +466,7 @@ Clay || (function(win, doc, loc) {
      * @return {Array}
      */
     function ArrayMap(callback, thisArg) {
-        IsType(callback, 'function');
+        assertFunction(callback);
 
         var O = Object(this), i = 0, iz = O.length >>> 0, that = (thisArg || this), rv = new Array(iz);
         while (i < iz) {
@@ -444,7 +489,7 @@ Clay || (function(win, doc, loc) {
      * @return {Boolean}
      */
     function ArraySome(callback, thisArg) {
-        IsType(callback, 'function');
+        assertFunction(callback);
 
         var O = Object(this), i = 0, iz = O.length >>> 0, that = (thisArg || this);
         while (i < iz) {
@@ -610,27 +655,115 @@ Clay || (function(win, doc, loc) {
     /**
      * 型判別
      *
-     * @param {*}       mixed
-     * @param {String}  [assert]
+     * @param {*} mixed
      * @return {String|Boolean}
      */
     // @todo issue: PS3で動いていない？
-    // @todo issue: isString, isArrayなどに分解する（＆簡潔な判定にする）
-    function IsType(mixed, assert) {
+    function isType(mixed) {
         if (Object.prototype.toString.call(mixed).match(RE_TYPE_DETECT)) {
-            var type = RegExp.$1.toLowerCase();
-            if (assert) {
-                if (type !== assert) {
-                    throw new TypeError(mixed+' is not a '+assert);
-                } else {
-                    return true;
-                }
-            } else {
-                return type;
-            }
+            return RegExp.$1.toLowerCase();
         } else {
-            return undefined;
+            return false;
         }
+    }
+
+    /**
+     * isXXX
+     * @param obj
+     * @return {Boolean}
+     */
+    function isString(obj) {
+        return ALIAS_toString.call(obj) === TYPEOF_STRING;
+    }
+    function isNumber(obj) {
+        return ALIAS_toString.call(obj) === TYPEOF_NUMBER;
+    }
+    function isArray(obj) {
+        return ALIAS_toString.call(obj) === TYPEOF_ARRAY;
+    }
+    function isObject(obj) {
+        return ALIAS_toString.call(obj) === TYPEOF_OBJECT;
+    }
+    function isRegexp(obj) {
+        return ALIAS_toString.call(obj) === TYPEOF_REGEXP;
+    }
+    function isDate(obj) {
+        return ALIAS_toString.call(obj) === TYPEOF_DATE;
+    }
+    function isNull(obj) {
+        return ALIAS_toString.call(obj) === TYPEOF_NULL;
+    }
+    function isUndefined(obj) {
+        return ALIAS_toString.call(obj) === TYPEOF_UNDEFINED;
+    }
+    function isFunction(obj) {
+        return ALIAS_toString.call(obj) === TYPEOF_FUNCTION;
+    }
+    function isBoolean(obj) {
+        return ALIAS_toString.call(obj) === TYPEOF_BOOLEAN;
+    }
+    function isError(obj) {
+        return ALIAS_toString.call(obj) === TYPEOF_ERROR;
+    }
+    function isElement(obj) {
+        return obj.nodeType !== void 0 && obj.nodeType === Node.ELEMENT_NODE;
+    }
+    function isNumeric(obj) {
+        return !isNaN(~~obj);
+    }
+    function isClaylump(obj) {
+        return obj.toString() === TYPEOF_CLAYLUMP;
+    }
+
+    /**
+     * assertXXX
+     * タイプチェックをして，不正であれば例外を投げる
+     *
+     * @throw {TypeError}
+     * @param obj
+     */
+    // @todo issue: assert使用箇所をビルドスクリプトなノリで消せるようにする
+    function assertString(obj) {
+        if (!isString(obj)) { throw new TypeError(obj+' is not a String.'); }
+    }
+    function assertNumber(obj) {
+        if (!isNumber(obj)) { throw new TypeError(obj+' is not a Number.'); }
+    }
+    function assertArray(obj) {
+        if (!isArray(obj)) { throw new TypeError(obj+' is not a Array.'); }
+    }
+    function assertObject(obj) {
+        if (!isObject(obj)) { throw new TypeError(obj+' is not a Object.'); }
+    }
+    function assertRegexp(obj) {
+        if (!isRegexp(obj)) { throw new TypeError(obj+' is not a RegExp.'); }
+    }
+    function assertDate(obj) {
+        if (!isDate(obj)) { throw new TypeError(obj+' is not a Date.'); }
+    }
+    function assertNull(obj) {
+        if (!isNull(obj)) { throw new TypeError(obj+' is not a Null.'); }
+    }
+    function assertUndefined(obj) {
+        if (!isUndefined(obj)) { throw new TypeError(obj+' is not a Undefined.'); }
+    }
+    function assertFunction(obj) {
+        if (!isFunction(obj)) { throw new TypeError(obj+' is not a Function.'); }
+    }
+    function assertBoolean(obj) {
+        if (!isBoolean(obj)) { throw new TypeError(obj+' is not a Boolean.'); }
+    }
+    function assertError(obj) {
+        if (!isError(obj)) { throw new TypeError(obj+' is not a Error.'); }
+    }
+    function assertElement(obj) {
+        if (!isElement(obj)) { throw new TypeError(obj+' is not a Element.'); }
+    }
+    function assertNumeric(obj) {
+        if (!isNumeric(obj)) { throw new TypeError(obj+' is not a Numeric.'); }
+    }
+    function assertClaylump(obj) {
+        if (!isClaylump(obj)) { throw new TypeError(obj+'is not a Claylump Object.'); }
     }
 
     /**
@@ -795,7 +928,7 @@ Clay || (function(win, doc, loc) {
                 isAry = false;
             }
 
-            if (IsType(val) === 'string') {
+            if (isString(val)) {
                 if (isAry) {
                     rv[name + '[' + (stack[name]++) + ']'] = val;
                 } else {
@@ -822,7 +955,7 @@ Clay || (function(win, doc, loc) {
      */
     function ClaylumpFactory(expr) {
         var elms;
-        if (IsType(expr) === 'string') {
+        if (isString(expr)) {
             elms = ElementSelector(expr);
         } else {
             elms = expr;
@@ -838,7 +971,7 @@ Clay || (function(win, doc, loc) {
      * @param {Node|Array} elms
      */
     function Claylump(elms) {
-        if (IsType(elms) !== 'array') {
+        if (!isArray(elms)) {
             elms = [elms];
         }
         var i = 0, iz = elms.length, that = this;
@@ -849,6 +982,7 @@ Clay || (function(win, doc, loc) {
         this.rewind   = _lumpRewind;
         this.current  = _lumpCurrent;
         this.i        = _lumpIndex;
+        this.toString = _lumpToString;
 
         function _lumpNext() {
             if (!that.hasNext()) {
@@ -867,6 +1001,9 @@ Clay || (function(win, doc, loc) {
         }
         function _lumpIndex(i) {
             return that._elms[i];
+        }
+        function _lumpToString() {
+            return TYPEOF_CLAYLUMP;
         }
     }
 
@@ -1051,9 +1188,9 @@ Clay || (function(win, doc, loc) {
     /**
      * Knead等で解決済みのモジュールを読み込む
      *
+     * @throw {ReferenceError}
      * @param {String} path
      * @return {*}
-     * @throw {ReferenceError}
      */
     function ModuleFetcher(path) {
         if (CACHE_MODULE[path]) {
@@ -1101,7 +1238,7 @@ Clay || (function(win, doc, loc) {
     function ModuleListLoader(list) {
         var item, i = 0, depend;
 
-        if (IsType(list) === 'string') {
+        if (!isArray(list)) {
             list = [list];
         }
 
@@ -1441,7 +1578,7 @@ Clay || (function(win, doc, loc) {
 
                 scopes = ElementSelector(expr, event.currentTarget);
 
-                if (IsType(scopes) !== 'array') {
+                if (!isArray(scopes)) {
                     scopes = [scopes];
                 }
 
@@ -1592,7 +1729,7 @@ Clay || (function(win, doc, loc) {
             b = bubble || false,
             c = cancel || true;
 
-        if (IsType(type) !== 'string') {
+        if (!isString(type)) {
             orgEvent = type;
             type = orgEvent.type;
         }
@@ -1839,7 +1976,7 @@ Clay || (function(win, doc, loc) {
         }
         else if (arguments.length === 2) {
             var k;
-            switch (IsType(key)) {
+            switch (isType(key)) {
                 // get property
                 case 'string':
                     return elm[RESERVED_STYLE_STORE][key];
@@ -1901,7 +2038,7 @@ Clay || (function(win, doc, loc) {
      */
     function ElementDataset(elm, key, val) {
         if ( val !== void 0 ) {
-            var type = IsType(val), ident;
+            var type = isType(val), ident;
 
             if ( type !== 'string' && type !== 'number') {
                 elm[RESERVED_DATASET_STORE] || (elm[RESERVED_DATASET_STORE] = {});
