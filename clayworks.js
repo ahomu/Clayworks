@@ -96,8 +96,8 @@ Clay || (function(win, doc, loc) {
             closest : FindClosest,      // *1
             next    : FindNext,         // *1
             prev    : FindPrev,         // *1
-            decedants: FindDescendants, // *1
-            ancestors: FindAncestors    // *1
+            descendants: FindDescendants, // *1
+            ancestors  : FindAncestors    // *1
         },
         http    : shake(NetHttp,{
             get     : NetHttpGet,
@@ -131,7 +131,6 @@ Clay || (function(win, doc, loc) {
             form    : {
                 toObj     : getFormData
             }
-            // @todo issue: フォームの値をPOST用のObjectにするなど
         }
     });
 
@@ -894,8 +893,8 @@ Clay || (function(win, doc, loc) {
         closest : ClayFinkelize(FindClosest),
         next    : ClayFinkelize(FindNext),
         prev    : ClayFinkelize(FindPrev),
-        decendants: ClayFinkelize(FindDescendants),
-        ancestors : ClayFinkelize(FindAncestors)
+        descendants: ClayFinkelize(FindDescendants),
+        ancestors  : ClayFinkelize(FindAncestors)
     };
 
     /**
