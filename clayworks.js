@@ -129,7 +129,7 @@ Clay || (function(win, doc, loc) {
                 scroll   : getScrollPosition
             },
             form    : {
-                toObj     : getFormData
+                toObj    : getFormData
             }
         }
     });
@@ -750,15 +750,29 @@ Clay || (function(win, doc, loc) {
      * @param {Node} form
      * @return {Object}
      */
-    // @todo issue: form.elementsのHTMLCollectionにtype:imageは含まれない
     function getFormData(form) {
         if (form.tagName !== 'FORM') {
             throw new TypeError('Argument must be HTMLFormElement.');
         }
 
         var elms = toArray(form.elements),
-            e, i = 0, k, pos, isAry, name, val, stack = {}, rv = {};
+            e, i, k, pos, isAry, name, val, stack = {}, rv = {},
+            list = [], li;
 
+        // form.elementsのHTMLCollectionにtype="image"は含まれない
+        // innerHTMLにtype="image"らしいのがあれば探索してみる
+        // @see http://d.hatena.ne.jp/rikuba/20100916/1284569774
+        if (form.innerHTML.indexOf('type="image"') || form.innerHTML.indexOf("type='image'")) {
+            list = toArray(form.getElementsByTagName('input'));
+            i = 0;
+            while (li = list[i++]) {
+                if (li.type === 'image') {
+                    elms.push(li);
+                }
+            }
+        }
+
+        i = 0;
         while (e = elms[i++]) {
             // 無効・未チェックの項目はスキップ
             if (
