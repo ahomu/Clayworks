@@ -44,6 +44,7 @@ Clay || (function(win, doc, loc) {
      */
     // *1 : Array#elとClaylumpのショートハンドに対応
     // *2 : 追加要素にHTMLStringを使用可
+    // *3 : テストケースあり
     Clay = shake(ClaylumpFactory, {
         ready   : ReadyHandler,
         jsload  : ScriptLoader,
@@ -65,24 +66,24 @@ Clay || (function(win, doc, loc) {
             sub     : EventSubscribe
         }),
         element : shake(ElementSelector,{
-            clazz   : ElementClass,     // *1
-            css     : ElementStyle,     // *1
-            attr    : ElementAttribute, // *1
-            data    : ElementDataset,   // *1
-            html    : ElementHTML,      // *1
-            text    : ElementText,      // *1
+            clazz   : ElementClass,     // *1 *3
+            css     : ElementStyle,     // *1 *3
+            attr    : ElementAttribute, // *1 *3
+            data    : ElementDataset,   // *1 *3
+            html    : ElementHTML,      // *1 *3
+            text    : ElementText,      // *1 *3
 
-            last    : ElementInsLast,   // *1 *2
-            first   : ElementInsFirst,  // *1 *2
-            before  : ElementInsBefore, // *1 *2
-            after   : ElementInsAfter,  // *1 *2
-            insert  : ElementInsert,    // *1 *2
-            replace : ElementReplace,   // *1 *2
-            wrap    : ElementWrap,      // *1 *2
+            last    : ElementInsLast,   // *1 *2 *3
+            first   : ElementInsFirst,  // *1 *2 *3
+            before  : ElementInsBefore, // *1 *2 *3
+            after   : ElementInsAfter,  // *1 *2 *3
+            insert  : ElementInsert,    // *1 *2 *3
+            replace : ElementReplace,   // *1 *2 *3
+            wrap    : ElementWrap,      // *1 *2 *3
 
-            empty   : ElementEmpty,     // *1
-            remove  : ElementRemove,    // *1
-            swap    : ElementSwap,      // *1
+            empty   : ElementEmpty,     // *1 *3
+            remove  : ElementRemove,    // *1 *3
+            swap    : ElementSwap,      // *1 *3
             clone   : ElementClone,     // *1
 
             absrect : ElementAbsRectPos,// *1
@@ -90,14 +91,14 @@ Clay || (function(win, doc, loc) {
             center  : ElementSetCenter  // *1
         }),
         find    : {
-            parent  : FindParent,       // *1
-            children: FindChildren,     // *1
-            siblings: FindSiblings,     // *1
-            closest : FindClosest,      // *1
-            next    : FindNext,         // *1
-            prev    : FindPrev,         // *1
-            descendants: FindDescendants,//*1
-            ancestors  : FindAncestors   //*1
+            parent  : FindParent,       // *1 *3
+            children: FindChildren,     // *1 *3
+            siblings: FindSiblings,     // *1 *3
+            closest : FindClosest,      // *1 *3
+            next    : FindNext,         // *1 *3
+            prev    : FindPrev,         // *1 *3
+            descendants: FindDescendants,//*1 *3
+            ancestors  : FindAncestors   //*1 *3
         },
         http    : shake(NetHttp,{
             get     : NetHttpGet,
@@ -113,20 +114,20 @@ Clay || (function(win, doc, loc) {
             str2dom : stringToDomElement,
             toArray : toArray,
             is      : shake(isType, {
-                string   : isString,
-                number   : isNumber,
-                array    : isArray,
-                object   : isObject,
-                regexp   : isRegexp,
-                date     : isDate,
-                nil      : isNull,
-                undef    : isUndefined,
-                callable : isFunction,
-                bool     : isBoolean,
-                error    : isError,
-                element  : isElement,
-                numeric  : isNumeric,
-                lump     : isClaylump
+                string   : isString,    // *3
+                number   : isNumber,    // *3
+                array    : isArray,     // *3
+                object   : isObject,    // *3
+                regexp   : isRegexp,    // *3
+                date     : isDate,      // *3
+                nil      : isNull,      // *3
+                undef    : isUndefined, // *3
+                callable : isFunction,  // *3
+                bool     : isBoolean,   // *3
+                error    : isError,     // *3
+                element  : isElement,   // *3
+                numeric  : isNumeric,   // *3
+                lump     : isClaylump   // *3
             }),
             assert  : {
                 string   : assertString,
@@ -171,24 +172,25 @@ Clay || (function(win, doc, loc) {
      *  Arrayをfor inループで探索するならhasOwnPropertyを使うこと
      */
     // *1 : JavaScript 1.6
+    // *2 : テストケースあり
     fill(String.prototype, {
-        trim      : StringTrim,
-        trimLeft  : StringTrimLeft,
-        trimRight : StringTrimRight,
-        repeat    : StringRepeat,
-        camelize  : StringCamelize,
-        decamelize: StringDecamelize
+        trim      : StringTrim,         // *2
+        trimLeft  : StringTrimLeft,     // *2
+        trimRight : StringTrimRight,    // *2
+        repeat    : StringRepeat,       // *2
+        camelize  : StringCamelize,     // *2
+        decamelize: StringDecamelize    // *2
     });
     fill(Array.prototype, {
-        indexOf     : ArrayIndexOf,     // *1
-        lastIndexOf : ArrayLastIndexOf, // *1
-        filter      : ArrayFilter,      // *1
-        forEach     : ArrayForEach,     // *1
-        every       : ArrayEvery,       // *1
-        map         : ArrayMap,         // *1
-        some        : ArraySome,        // *1
-        contains    : ArrayContaitns,
-        el          : ArrayElementLoop
+        indexOf     : ArrayIndexOf,     // *1 *2
+        lastIndexOf : ArrayLastIndexOf, // *1 *2
+        filter      : ArrayFilter,      // *1 *2
+        forEach     : ArrayForEach,     // *1 *2
+        every       : ArrayEvery,       // *1 *2
+        map         : ArrayMap,         // *1 *2
+        some        : ArraySome,        // *1 *2
+        contains    : ArrayContaitns,   // *2
+        el          : ArrayElementLoop  // *2
     });
 
     /**
@@ -597,10 +599,11 @@ Clay || (function(win, doc, loc) {
      * @return {Array}
      */
     function ArrayElementLoop(func) {
-        var i = 0, item, args = toArray(arguments).slice(1),
+        var i = 0, iz = this.length, item, args = toArray(arguments).slice(1),
             rv, rvAry = [];
-        while (item = this[i++]) {
-            if (item.nodeType && item.nodeType === Node.ELEMENT_NODE) {
+        for (; i<iz; i++) {
+            item = this[i];
+            if (item != null && item.nodeType && item.nodeType === Node.ELEMENT_NODE) {
                 rv = func.apply(this, [item].concat(args));
                 rv && rvAry.push(rv);
             }
@@ -660,16 +663,12 @@ Clay || (function(win, doc, loc) {
      */
     // @todo issue: PS3で動いていない？
     function isType(mixed) {
-        if (Object.prototype.toString.call(mixed).match(RE_TYPE_DETECT)) {
-            return RegExp.$1.toLowerCase();
-        } else {
-            return false;
-        }
+        return Object.prototype.toString.call(mixed);
     }
 
     /**
      * isXXX
-     * @param obj
+     * @param {Object} obj
      * @return {Boolean}
      */
     function isString(obj) {
@@ -706,13 +705,17 @@ Clay || (function(win, doc, loc) {
         return ALIAS_toString.call(obj) === TYPEOF_ERROR;
     }
     function isElement(obj) {
-        return obj.nodeType !== void 0 && obj.nodeType === Node.ELEMENT_NODE;
+        return obj != null && obj.nodeType !== void 0 && obj.nodeType === Node.ELEMENT_NODE;
     }
     function isNumeric(obj) {
-        return !isNaN(~~obj);
+        // Number または String で空文字でなく数値化してNanにならないこと
+        return isNumber(obj)   ||
+               isString(obj)   &&
+               obj !== ''      &&
+               !isNaN(obj-0);
     }
     function isClaylump(obj) {
-        return obj.toString() === TYPEOF_CLAYLUMP;
+        return ''+obj === TYPEOF_CLAYLUMP;
     }
 
     /**
@@ -720,7 +723,8 @@ Clay || (function(win, doc, loc) {
      * タイプチェックをして，不正であれば例外を投げる
      *
      * @throw {TypeError}
-     * @param obj
+     * @param {Object} obj
+     * @return {void}
      */
     // @todo issue: assert使用箇所をビルドスクリプトなノリで消せるようにする
     function assertString(obj) {
@@ -1202,7 +1206,7 @@ Clay || (function(win, doc, loc) {
 
     /**
      * モジュールを追加する
-     * 他の依存モジュールが宣言されていれば，JunctionLoadに回す
+     * 他の依存モジュールが宣言されていれば，ModuleListLoader
      *
      * @param {String} path
      * @param {Array} dependencies
@@ -1978,11 +1982,11 @@ Clay || (function(win, doc, loc) {
             var k;
             switch (isType(key)) {
                 // get property
-                case 'string':
+                case TYPEOF_STRING:
                     return elm[RESERVED_STYLE_STORE][key];
                 break;
                 // set properties
-                case 'object':
+                case TYPEOF_OBJECT:
                     for (k in key) {
                         if (key.hasOwnProperty(k)) {
                             elm.style[k] = key[k];
@@ -1990,7 +1994,7 @@ Clay || (function(win, doc, loc) {
                     }
                 break;
                 // get properties
-                case 'array':
+                case TYPEOF_ARRAY:
                     var styles = elm[RESERVED_STYLE_STORE],
                         i = 0, rv = {};
                     while (k = key[i++]) {
@@ -2040,7 +2044,7 @@ Clay || (function(win, doc, loc) {
         if ( val !== void 0 ) {
             var type = isType(val), ident;
 
-            if ( type !== 'string' && type !== 'number') {
+            if ( type !== TYPEOF_STRING && type !== TYPEOF_NUMBER) {
                 elm[RESERVED_DATASET_STORE] || (elm[RESERVED_DATASET_STORE] = {});
 
                 ident = '__ident-'+INCREMENT_CUSTOMDATA_ATTRIBUTES++;
