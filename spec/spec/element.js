@@ -172,9 +172,10 @@ describe('Clay.element', function() {
         expect(fugaChild.parentNode).toBe(hoge);
         expect(hogeChild.parentNode).toBeNull();
 
-        Clay.elm.replace(fugaChild, hogeChild.outerHTML);
-        hogeChild = domId('hoge-child');
-        expect(hogeChild.parentNode).toBe(hoge);
+        // 親子関係を失ったfugaChildとfuga（のouterHTML）を入れ替える
+        Clay.elm.replace(fugaChild, fuga.outerHTML);
+        fuga = domId('fuga');
+        expect(fuga.parentNode).toBe(hoge);
     });
 
     it('can wrap element', function() {

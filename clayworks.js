@@ -657,13 +657,25 @@ Clay || (function(win, doc, loc) {
 
     /**
      * 型判別
+     * @description
+     *   <p>null, undefinedはブラウザによって[object Null], [object Undefined]と返さない</p>
+     *   <ul>
+     *     <li>Internet Explorer : [object Object]</li>
+     *     <li>Opera             : [object Window]</li>
+     *     <li>iOS Mobile Safari : [object DOMWindow]</li>
+     *     <li>Android           : [object Android]</li>
+     *   </ul>
      *
      * @param {*} mixed
      * @return {String|Boolean}
      */
     // @todo issue: PS3で動いていない？
     function isType(mixed) {
-        return Object.prototype.toString.call(mixed);
+        if (mixed != null) {
+            return ALIAS_toString.call(mixed);
+        } else {
+            return mixed === null ? TYPEOF_NULL : TYPEOF_UNDEFINED;
+        }
     }
 
     /**
@@ -690,10 +702,12 @@ Clay || (function(win, doc, loc) {
         return ALIAS_toString.call(obj) === TYPEOF_DATE;
     }
     function isNull(obj) {
-        return ALIAS_toString.call(obj) === TYPEOF_NULL;
+        return obj === null;
+//        return ALIAS_toString.call(obj) === TYPEOF_NULL;
     }
     function isUndefined(obj) {
-        return ALIAS_toString.call(obj) === TYPEOF_UNDEFINED;
+        return obj === undefined;
+//        return ALIAS_toString.call(obj) === TYPEOF_UNDEFINED || obj === undefined;
     }
     function isFunction(obj) {
         return ALIAS_toString.call(obj) === TYPEOF_FUNCTION;
