@@ -113,6 +113,7 @@ Clay || (function(win, doc, loc) {
             fill    : fill,
             str2dom : stringToDomElement,
             toArray : toArray,
+            isConst : isConstructor,
             is      : shake(isType, {
                 string   : isString,    // *3
                 number   : isNumber,    // *3
@@ -155,7 +156,7 @@ Clay || (function(win, doc, loc) {
                 scroll   : getScrollPosition
             },
             form    : {
-                toObj    : getFormData
+                data     : getFormData
             }
         }
     });
@@ -632,6 +633,7 @@ Clay || (function(win, doc, loc) {
 
     /**
      * オブジェクトを消極的に合成
+     * prototype拡張に利用
      *
      * @param {Object} base
      * @param {Object} pad
@@ -656,7 +658,7 @@ Clay || (function(win, doc, loc) {
     }
 
     /**
-     * 型判別
+     * 主要な型の判別
      * @description
      *   <p>null, undefinedはブラウザによって[object Null], [object Undefined]と返さない</p>
      *   <ul>
@@ -665,6 +667,7 @@ Clay || (function(win, doc, loc) {
      *     <li>iOS Mobile Safari : [object DOMWindow]</li>
      *     <li>Android           : [object Android]</li>
      *   </ul>
+     *
      *
      * @param {*} mixed
      * @return {String|Boolean}
@@ -676,6 +679,24 @@ Clay || (function(win, doc, loc) {
         } else {
             return mixed === null ? TYPEOF_NULL : TYPEOF_UNDEFINED;
         }
+    }
+
+    /**
+     * コンストラクタを調べる
+     * 型判別を行うだけであればObject.prototype.toString（のエイリアス）のほうが速そう
+     * Operaのみconstructor.nameのほうが速いが，他のモダンブラウザよりどちらの方法も遅い
+     *
+     * @param mixed
+     * @return string
+     */
+    function isConstructor(mixed) {
+        if (mixed == null) {
+            return mixed === null ? 'Null' : 'Undefined';
+        }
+        var base = mixed.constructor;
+        return ALIAS_toString.call(mixed) === TYPEOF_FUNCTION
+               ? ( 'name' in base ? base.name : (''+base).replace(/^\s*function\s*([^\(]*)[\S\s]+$/im, '$1'))
+               : base;
     }
 
     /**
@@ -1026,7 +1047,7 @@ Clay || (function(win, doc, loc) {
     }
 
     // ショートハンドを合成
-    Claylump.prototype = {
+    fill(Claylump.prototype, {
         on      : ClayFinkelize(EventOn),
         off     : ClayFinkelize(EventOff),
         emit    : ClayFinkelize(EventEmit),
@@ -1064,7 +1085,7 @@ Clay || (function(win, doc, loc) {
         prev    : ClayFinkelize(FindPrev),
         descendants: ClayFinkelize(FindDescendants),
         ancestors  : ClayFinkelize(FindAncestors)
-    };
+    });
 
     /**
      * 部分適用
