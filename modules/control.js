@@ -1,5 +1,5 @@
 /**
- * Clay.module.control
+ * Clay.modules.control
  *
  * Copyright (c) 2011 Ayumu Sato ( http://havelog.ayumusato.com )
  *

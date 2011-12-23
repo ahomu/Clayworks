@@ -11,16 +11,16 @@
  * 実行管理系のメソッド類
  *  ready
  *      よくあるやつ
- *  doll (ドロにんぎょう)
+ *  doll
  *      汎用クラス的なオブジェクト生成器
- *  knead (粘土こねこね)
- *      依存スクリプトをロードするが，すべて非同期ロードするので依存関係
- *  bake (粘土やきやき)
- *      URLで分岐させて処理を適用する）
+ *  knead
+ *      依存スクリプトをロードするが，すべて非同期ロードするので依存関係に注意
+ *  bake
+ *      URLで分岐させて処理を適用する
  *  register
  *      モジュールを登録する
  *  fetch
- *      登録済みのモジュール取得する
+ *      登録済みのモジュールを取得する
  *  depend
  *      モジュールの依存関係を宣言する（registerでラップされている前提）
  *
@@ -62,16 +62,18 @@ Clay || (function(win, doc, loc) {
             on      : EventOn,          // *1
             off     : EventOff,         // *1
             emit    : EventEmit,        // *1
+//            once    : EventOnce,
+//            cansel  : EventOnceCansel,
             pub     : EventPublish,
             sub     : EventSubscribe
         }),
         element : shake(ElementSelector,{
-            clazz   : ElementClass,     // *1 *3
-            css     : ElementStyle,     // *1 *3
-            attr    : ElementAttribute, // *1 *3
-            data    : ElementDataset,   // *1 *3
-            html    : ElementHTML,      // *1 *3
-            text    : ElementText,      // *1 *3
+            clazz   : ElementClass,     // *1    *3
+            css     : ElementStyle,     // *1    *3
+            attr    : ElementAttribute, // *1    *3
+            data    : ElementDataset,   // *1    *3
+            html    : ElementHTML,      // *1    *3
+            text    : ElementText,      // *1    *3
 
             last    : ElementInsLast,   // *1 *2 *3
             first   : ElementInsFirst,  // *1 *2 *3
@@ -81,9 +83,9 @@ Clay || (function(win, doc, loc) {
             replace : ElementReplace,   // *1 *2 *3
             wrap    : ElementWrap,      // *1 *2 *3
 
-            empty   : ElementEmpty,     // *1 *3
-            remove  : ElementRemove,    // *1 *3
-            swap    : ElementSwap,      // *1 *3
+            empty   : ElementEmpty,     // *1    *3
+            remove  : ElementRemove,    // *1    *3
+            swap    : ElementSwap,      // *1    *3
             clone   : ElementClone,     // *1
 
             absrect : ElementAbsRectPos,// *1
@@ -91,14 +93,14 @@ Clay || (function(win, doc, loc) {
             center  : ElementSetCenter  // *1
         }),
         find    : {
-            parent  : FindParent,       // *1 *3
-            children: FindChildren,     // *1 *3
-            siblings: FindSiblings,     // *1 *3
-            closest : FindClosest,      // *1 *3
-            next    : FindNext,         // *1 *3
-            prev    : FindPrev,         // *1 *3
-            descendants: FindDescendants,//*1 *3
-            ancestors  : FindAncestors   //*1 *3
+            parent  : FindParent,       // *1    *3
+            children: FindChildren,     // *1    *3
+            siblings: FindSiblings,     // *1    *3
+            closest : FindClosest,      // *1    *3
+            next    : FindNext,         // *1    *3
+            prev    : FindPrev,         // *1    *3
+            descendants: FindDescendants,//*1    *3
+            ancestors  : FindAncestors   //*1    *3
         },
         http    : shake(NetHttp,{
             get     : NetHttpGet,
@@ -606,7 +608,7 @@ Clay || (function(win, doc, loc) {
             item = this[i];
             if (item != null && item.nodeType && item.nodeType === Node.ELEMENT_NODE) {
                 rv = func.apply(this, [item].concat(args));
-                rv && rvAry.push(rv);
+                rv !== void 0 && rvAry.push(rv);
             }
         }
         return (rvAry.length !== 0) ? rvAry : this;
@@ -644,6 +646,23 @@ Clay || (function(win, doc, loc) {
         for (k in pad) {
             if (pad.hasOwnProperty(k)) {
                 k in base || (base[k] = pad[k]);
+            }
+        }
+    }
+
+    /**
+     * オブジェクトを積極的に合成
+     * クラス継承に利用?
+     *
+     * @param {Object} base
+     * @param {Object} over
+     * @return {void}
+     */
+    function override(base, over) {
+        var k;
+        for (k in over) {
+            if (over.hasOwnProperty(k)) {
+                base[k] = over[k];
             }
         }
     }
@@ -1097,8 +1116,6 @@ Clay || (function(win, doc, loc) {
         function _finkelize() {
             var i = 0, elms = this._elms, elm, rv, rvAry = [];
 
-            this.rewind();
-
             while (elm = elms[i++]) {
                 rv = func.apply(this, [elm].concat(toArray(arguments)));
                 rv !== void 0 && rvAry.push(rv);
@@ -1465,7 +1482,6 @@ Clay || (function(win, doc, loc) {
             }
         }
 
-//alert(ua.indexOf('PSP'));
         return rv;
     }
 
@@ -1911,7 +1927,7 @@ Clay || (function(win, doc, loc) {
      * @return {Array|Node}
      */
     function ElementSelector(expr, context) {
-        // @todo issue: いい加減なのでどうにかする
+        // @todo issue: 自力セレクターエンジンを載せるかどうか
 
         var rv;
 
@@ -1966,7 +1982,7 @@ Clay || (function(win, doc, loc) {
      *
      * @param {Node}   elm
      * @param {String} oClazz 1byte目が制御子+2byte目以降がクラス名
-     * @return {Boolean} 要素のクラス名（今回操作対象でなかったクラスを含む）
+     * @return {Boolean|void}
      */
     function ElementClass(elm, oClazz) { // operator(str1)+className(str*)
         var opr = oClazz.substr(0, 1),
@@ -1978,10 +1994,12 @@ Clay || (function(win, doc, loc) {
 
         if (opr === '+') {
             elm.className += !has ? ' '+clazz : '';
+            return void 0;
         }
         else if (opr === '-') {
             elm.className = !!has ? (' '+elm.className+' ').replace(' '+clazz+' ', ' ').replace(/\s{2,}/, ' ')
                                   : elm.className;
+            return void 0;
         }
         else if (opr === '?') {
             return has;
@@ -2001,7 +2019,7 @@ Clay || (function(win, doc, loc) {
      * @param {Node}                elm
      * @param {String|Object|Array} key
      * @param {String}              [val]
-     * @return {String|Object}
+     * @return {String|Object|void}
      */
     function ElementStyle(elm, key, val) {
 
@@ -2012,6 +2030,7 @@ Clay || (function(win, doc, loc) {
         if (arguments.length === 3) {
             // set property
             elm.style[key] = val;
+            return void 0;
         }
         else if (arguments.length === 2) {
             var k;
@@ -2027,6 +2046,7 @@ Clay || (function(win, doc, loc) {
                             elm.style[k] = key[k];
                         }
                     }
+                    return void 0;
                 break;
                 // get properties
                 case TYPEOF_ARRAY:
@@ -2136,6 +2156,7 @@ Clay || (function(win, doc, loc) {
      * @param {String} txt
      * @return {String}
      */
+    // @todo issue: ネストした要素のテキストノードがtextContentだと連結されてない？
     function ElementText(elm, txt) {
         if (txt !== void 0) {
             return ENV.IE678 ? elm.innerText = txt : elm.textContent = txt;
@@ -2799,7 +2820,7 @@ Clay || (function(win, doc, loc) {
                 tmpl.replace(/[\r\n\t]/g, ' ')
                     .split("'").join("\\'")
                     .split(/\s{2,}/).join(' ')
-                    //.replace(/%{(.+)}%/g, "',($1),'")
+//                    .replace(/%\{([\s\S]+?)\}%/g, "',($1),'").replace(/\\'/g, "'")
                     .replace(
                         /{([a-zA-Z0-9_\-\[\]\.]+)}/g,
                         "',data.$1,'"

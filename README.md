@@ -15,15 +15,17 @@ Clay.ready(function(c) {
     /**
      * basics
      *
+     * c.elemで取得するとピュアなElementを直接返します
+     * 今の時点でセレクタエンジンを搭載してないので，セレクタはブラウザ依存しています
      * メソッド群は本体スクリプトの冒頭を読めば大体書いてあります
      */
-    var elmMado = c.Elem('#mado'),
-        elmHomu = c.Elem('#homu'),
-        elmAry  = c.Elem('.qbee');
+    var elmMado = c.elem('#mado'),
+        elmHomu = c.elem('#homu'),
+        elmAry  = c.elem('.qbee');
 
-    c.Elem.clazz(elmAry, '+mamiru');
+    c.elem.clazz(elmAry, '+mamiru');
 
-    c.Elem.replace(elmMado, elmHomu);
+    c.elem.replace(elmMado, elmHomu);
 
 
     /**
