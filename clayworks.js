@@ -219,12 +219,13 @@ Clay || (function(win, doc, loc, nav) {
             return null;
         })(),
 
-        INCREMENT_JSONP_CALLBACKS       = 0,
-        INCREMENT_CUSTOMDATA_ATTRIBUTES = 0,
+        INCREMENT_JSONP   = 0,
+        INCREMENT_DATASET = 0,
 
         MODULE_LOAD_REMAINING    = 0,
         MODULE_LOAD_DEPENDENCIES = {},
 
+        RESERVED_JSONP_STORE    = '__cw_jsonp__',
         RESERVED_DATASET_STORE  = '__cw_dataset__',
         RESERVED_EVENT_STORE    = '__cw_event__',
         RESERVED_DELEGETE_STORE = '__cw_delegate__',
@@ -2137,7 +2138,7 @@ Clay || (function(win, doc, loc, nav) {
             if ( type !== TYPEOF_STRING && type !== TYPEOF_NUMBER) {
                 elm[RESERVED_DATASET_STORE] || (elm[RESERVED_DATASET_STORE] = {});
 
-                ident = '__ident-'+INCREMENT_CUSTOMDATA_ATTRIBUTES++;
+                ident = '__ident-'+INCREMENT_DATASET++;
 
                 // _dataに本来のvalを格納
                 elm[RESERVED_DATASET_STORE][ident] = val;
@@ -2843,7 +2844,7 @@ Clay || (function(win, doc, loc, nav) {
      */
     function NetHttpJSONP(path, specifier, callback) {
         var script       = doc.createElement('script'),
-            callbackname = 'bracketE_' + INCREMENT_JSONP_CALLBACKS++;
+            callbackname = RESERVED_JSONP_STORE + INCREMENT_JSONP++;
 
         script.type = 'text/javascript';
         script.src  = path + '&' + specifier + '=' + callbackname;
