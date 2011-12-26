@@ -1,7 +1,24 @@
 describe('Clay.util', function() {
 
+    var form,
+        domId     = function(id) { return document.getElementById(id); },
+        domCreate = function(elm){ return document.createElement(elm); };
+
     beforeEach(function() {
-        var abs = document.createElement('div');
+        loadFixtures('util.html');
+        form = domId('form');
+    });
+
+    it('can get form input data', function() {
+        expect(Clay.util.form.data(form)).toEqual({
+            'single'    : 'single',
+            'array[0]'  : 'item1',
+            'array[1]'  : 'item2',
+            'array[2]'  : 'item3',
+            'image'     : 'imagedata',
+            'withvalue' : 'withvalue',
+            'withoutvalue' : 'withoutvalue'
+        });
     });
 
     afterEach(function() {

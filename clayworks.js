@@ -955,6 +955,7 @@ Clay || (function(win, doc, loc, nav) {
      * @param {Node} form
      * @return {Object}
      */
+    // @todo issue:multipleなselectに対応する
     function getFormData(form) {
         if (form.tagName !== 'FORM') {
             throw new TypeError('Argument must be HTMLFormElement.');
@@ -994,6 +995,21 @@ Clay || (function(win, doc, loc, nav) {
             pos  = e.name.indexOf('[');
             name = pos !== -1 ? e.name.substr(0, pos) : e.name;
             val  = e.value;
+
+            // valueなしのoptionは中のテキストノードが値になるはずだが，
+            // IE678ではselect.value, option.valueから値を取れない
+            if (ENV.IE678 && e.tagName === 'SELECT' && !val) {
+                var optionAry = FindDescendants(e), option,
+                    j = 0, jz = optionAry.length;
+
+                for (; j<jz; j++) {
+                    option = optionAry[j];
+                    if (option.tagName === 'OPTION' && option.selected === true) {
+                        val = option.innerText;
+                        break;
+                    }
+                }
+            }
 
             if (pos !== -1) {
                 isAry = true;
@@ -2174,7 +2190,7 @@ Clay || (function(win, doc, loc, nav) {
      * @param {String} txt
      * @return {String}
      */
-    // @todo issue: ネストした要素のテキストノードがtextContentだと連結されてない？
+    // @todo issue: ネストした要素のテキストノードがtextContentだと連結されてるような
     function ElementText(elm, txt) {
         if (txt !== void 0) {
             return ENV.IE678 ? elm.innerText = txt : elm.textContent = txt;
@@ -2526,7 +2542,7 @@ Clay || (function(win, doc, loc, nav) {
      * r オプションで再帰処理 (BODYで止める)
      *
      * @param {Node} elm
-     * @param {Boolean} r
+     * @param {Boolean} [r]
      * @return {Node}
      */
     function FindParent(elm, r) {
@@ -2549,7 +2565,7 @@ Clay || (function(win, doc, loc, nav) {
      * r オプションで再帰処理
      *
      * @param {Node} elm
-     * @param {Boolean} r
+     * @param {Boolean} [r]
      * @return {Array}
      */
     function FindChildren(elm, r) {
@@ -2591,7 +2607,7 @@ Clay || (function(win, doc, loc, nav) {
      * 指定した要素の兄弟要素を返す
      *
      * @param {Node} elm
-     * @param {Boolean} withSelf
+     * @param {Boolean} [withSelf]
      * @return {Array}
      */
     function FindSiblings(elm, withSelf) {

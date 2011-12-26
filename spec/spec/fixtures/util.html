@@ -2,11 +2,28 @@
   "http://www.w3.org/TR/html4/loose.dtd">
 <html>
 <head>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
   <title>Clay.util</title>
 </head>
 <body>
 
-
+<form action="" method="post" id="form">
+    <fieldset>
+        <input type="text" name="single" value="single" />
+        <input type="text" name="array[]" value="item1" />
+        <input type="text" name="array[]" value="item2" />
+        <input type="text" name="array[]" value="item3" />
+        <input type="image" name="image" value="imagedata" />
+        <select name="withvalue">
+            <option value="withvalue">ラベル</option>
+        </select>
+        <select name="withoutvalue">
+            <optgroup label="group">
+                <option>withoutvalue</option>
+            </optgroup>
+        </select>
+    </fieldset>
+</form>
 
 </body>
 </html>
