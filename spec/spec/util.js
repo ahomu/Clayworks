@@ -10,16 +10,18 @@ describe('Clay.util', function() {
     });
 
     it('can get form input data', function() {
-        expect(Clay.util.form.data(form)).toEqual({
+        var data = Clay.util.form.data(form);
+
+        expect(data).toEqual({
             'single'    : 'single',
-            'array[0]'  : 'item1',
-            'array[1]'  : 'item2',
-            'array[2]'  : 'item3',
+            'array'     : ['item1', 'item2', 'item3'],
             'image'     : 'imagedata',
             'withvalue' : 'withvalue',
-            'multiplevalue[0]'  : 'item2',
-            'multiplevalue[1]'  : 'item3'
+            'multiplevalue'  : ['item2', 'item3']
         });
+        Clay.http.get('/', function(res) {
+            console.log(res);
+        }, {data:data});
     });
 
     afterEach(function() {

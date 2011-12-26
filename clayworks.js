@@ -967,7 +967,7 @@ Clay || (function(win, doc, loc, nav) {
         }
 
         var elms = toArray(form.elements),
-            e, i, k, pos, isAry, name, val, stack = {}, rv = {},
+            e, i, k, pos, isAry, name, val, rv = {},
             list = [], li;
 
         // form.elementsのHTMLCollectionにtype="image"は含まれない
@@ -997,16 +997,10 @@ Clay || (function(win, doc, loc, nav) {
                 continue;
             }
 
-            pos  = e.name.indexOf('[');
-            name = pos !== -1 ? e.name.substr(0, pos) : e.name;
-            val  = e.value;
-
-            if (pos !== -1) {
-                isAry = true;
-                stack[name] === void 0 && (stack[name] = 0);
-            } else {
-                isAry = false;
-            }
+            pos   = e.name.indexOf('[');
+            isAry = pos !== -1;
+            name  = isAry ? e.name.substr(0, pos) : e.name;
+            val   = e.value;
 
             // multiple属性のついたSELECT要素
             // nameが[]になっていなければ，multipleであってもデータ送信しない
@@ -1024,14 +1018,16 @@ Clay || (function(win, doc, loc, nav) {
 
             if (isString(val)) {
                 if (isAry) {
-                    rv[name + '[' + (stack[name]++) + ']'] = val;
+                    rv[name] || (rv[name] = []);
+                    rv[name].push(val);
                 } else {
                     rv[name] = val;
                 }
             } else {
+                rv[name] || (rv[name] = []);
                 for (k in val) {
                     if (val.hasOwnProperty(k)) {
-                        rv[name + '[' + (stack[name]++) + ']'] = val[k];
+                        rv[name].push(val[k]);
                     }
                 }
             }
@@ -2713,9 +2709,9 @@ Clay || (function(win, doc, loc, nav) {
      * @return {XMLHttpRequest}
      */
     function NetHttp(path, method, callbacks, options ) {
-        options || ( options = {} );
+        options || (options = {});
 
-        var xhr, encoded = [],
+        var xhr, encoded = [], item, i, iz,
             async     = options.async || true,
             data      = options.data  || null,
             type      = options.type  || null;
@@ -2741,20 +2737,22 @@ Clay || (function(win, doc, loc, nav) {
                     contentType = xhr.getResponseHeader('Content-Type'),
                     response;
 
-                switch(contentType.substr(0, contentType.indexOf(';')).trim()) {
-                    case 'text/xml' :
-                        response = xhr.responseXML;
-                    break;
-                    case 'text/json':
-                    case 'text/javascript':
-                    case 'application/json':
-                    case 'application/javascript':
-                    case 'application/x-javascript':
-                        response = JSON.parse(xhr.responseText);
-                    break;
-                    default:
-                        response = xhr.responseText;
-                    break;
+                if (contentType !== null) {
+                    switch(contentType.substr(0, contentType.indexOf(';')).trim()) {
+                        case 'text/xml' :
+                            response = xhr.responseXML;
+                        break;
+                        case 'text/json':
+                        case 'text/javascript':
+                        case 'application/json':
+                        case 'application/javascript':
+                        case 'application/x-javascript':
+                            response = JSON.parse(xhr.responseText);
+                        break;
+                        default:
+                            response = xhr.responseText;
+                        break;
+                    }
                 }
 
                 // success or error
@@ -2789,7 +2787,16 @@ Clay || (function(win, doc, loc, nav) {
         if (method === 'POST' && data !== null) {
             for (var key in data) {
                 if (data.hasOwnProperty(key)) {
-                    encoded.push((encodeURIComponent(key) + '=' + encodeURIComponent(data[key])).replace('%20', '+'));
+                    item = data[key];
+                    if (isArray(item)) {
+                        i  = 0;
+                        iz = item.length;
+                        for (; i<iz; i++) {
+                            encoded.push((encodeURIComponent(key+'['+i+']') + '=' + encodeURIComponent(item[i])).replace('%20', '+'));
+                        }
+                    } else {
+                        encoded.push((encodeURIComponent(key) + '=' + encodeURIComponent(item)).replace('%20', '+'));
+                    }
                 }
             }
             data = encoded.join('&');
