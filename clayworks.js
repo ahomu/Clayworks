@@ -950,12 +950,17 @@ Clay || (function(win, doc, loc, nav) {
     }
 
     /**
-     * フォーム内ののvalueをPOST用データとして取得する
+     * フォーム内のvalueをPOST用データとして取得する
+     *
+     * valueなしoption要素について
+     *   valueなしのoption要素は内包テキストがvalueになるはずだが，
+     *   IE678のselect.value, IE67のoption.valueから値を取れない．
+     *   加えて <option value="">なし</option> と，<option>なし</option> の区別が，
+     *   HTMLを検査しないと分からないので対応しないことにしている
      *
      * @param {Node} form
      * @return {Object}
      */
-    // @todo issue:multipleなselectに対応する
     function getFormData(form) {
         if (form.tagName !== 'FORM') {
             throw new TypeError('Argument must be HTMLFormElement.');
@@ -996,26 +1001,25 @@ Clay || (function(win, doc, loc, nav) {
             name = pos !== -1 ? e.name.substr(0, pos) : e.name;
             val  = e.value;
 
-            // valueなしのoptionは中のテキストノードが値になるはずだが，
-            // IE678ではselect.value, option.valueから値を取れない
-            if (ENV.IE678 && e.tagName === 'SELECT' && !val) {
-                var optionAry = FindDescendants(e), option,
-                    j = 0, jz = optionAry.length;
-
-                for (; j<jz; j++) {
-                    option = optionAry[j];
-                    if (option.tagName === 'OPTION' && option.selected === true) {
-                        val = option.innerText;
-                        break;
-                    }
-                }
-            }
-
             if (pos !== -1) {
                 isAry = true;
                 stack[name] === void 0 && (stack[name] = 0);
             } else {
                 isAry = false;
+            }
+
+            // multiple属性のついたSELECT要素
+            // nameが[]になっていなければ，multipleであってもデータ送信しない
+            if (e.tagName === 'SELECT' && e.multiple === true && isAry) {
+                var option, j = 0, jz = e.length;
+
+                val = [];
+                for (; j<jz; j++) {
+                    option = e[j];
+                    if (option.selected === true) {
+                        val.push(option.value);
+                    }
+                }
             }
 
             if (isString(val)) {
@@ -1032,6 +1036,7 @@ Clay || (function(win, doc, loc, nav) {
                 }
             }
         }
+
         return rv;
     }
 

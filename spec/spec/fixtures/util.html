@@ -17,10 +17,12 @@
         <select name="withvalue">
             <option value="withvalue">ラベル</option>
         </select>
-        <select name="withoutvalue">
+        <select name="multiplevalue[]" multiple="multiple">
+            <option value="item1">item1</option>
             <optgroup label="group">
-                <option>withoutvalue</option>
+                <option value="item2" selected="selected">item2</option>
             </optgroup>
+            <option value="item3" selected="selected">item3</option>
         </select>
     </fieldset>
 </form>

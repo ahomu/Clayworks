@@ -17,7 +17,8 @@ describe('Clay.util', function() {
             'array[2]'  : 'item3',
             'image'     : 'imagedata',
             'withvalue' : 'withvalue',
-            'withoutvalue' : 'withoutvalue'
+            'multiplevalue[0]'  : 'item2',
+            'multiplevalue[1]'  : 'item3'
         });
     });
 
