@@ -159,7 +159,7 @@ Clay || (function(win, doc, loc, nav) {
                 scroll   : getScrollPosition
             },
             form    : {
-                data     : getFormData
+                data     : getFormData  // *3
             }
         }
     });
@@ -2613,23 +2613,23 @@ Clay || (function(win, doc, loc, nav) {
     function FindSiblings(elm, withSelf) {
         var e, rv = [];
 
-        e = elm.previousSibling;
-        do {
+        e = elm;
+        while (e = e.previousSibling) {
             if (e.nodeType === Node.ELEMENT_NODE) {
                 rv.push(e);
             }
-        } while (e = e.previousSibling);
+        }
 
-        if (!!withSelf) {
+        if (withSelf) {
             rv.push(elm);
         }
 
-        e = elm.nextSibling;
-        do {
+        e = elm;
+        while (e = e.nextSibling) {
             if (e.nodeType === Node.ELEMENT_NODE) {
                 rv.push(e);
             }
-        } while (e = e.nextSibling);
+        }
 
         return rv;
     }
