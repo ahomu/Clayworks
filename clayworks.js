@@ -33,8 +33,9 @@
  *  Opera            newest
  */
 var Clay;
-Clay || (function(win, doc, loc) {
+Clay || (function(win, doc, loc, nav) {
 
+    // shoud be strict!!
     "use strict";
 
     /**
@@ -110,7 +111,7 @@ Clay || (function(win, doc, loc) {
         widget  : {
             tmpl    : WidgetBuildTemplate
         },
-        util    : {
+        utility : {
             shake   : shake,
             fill    : fill,
             str2dom : stringToDomElement,
@@ -164,8 +165,9 @@ Clay || (function(win, doc, loc) {
     });
 
     // alias
-    Clay.evt = Clay.event;
-    Clay.elm = Clay.element;
+    Clay.evt  = Clay.event;
+    Clay.elm  = Clay.element;
+    Clay.util = Clay.utility;
 
     /**
      * コアJavaScriptのprototype拡張マップ
@@ -673,7 +675,16 @@ Clay || (function(win, doc, loc) {
      * @param {Object} list
      */
     function toArray(list) {
-        return Array.prototype.slice.call(list);
+        if (!ENV.IE678) {
+            return Array.prototype.slice.call(list);
+        } else {
+            var rv= new Array(list.length), i = list.length;
+            for (; i-->0;)
+                if (i in list) {
+                    rv[i]= list[i];
+                }
+            return rv;
+        }
     }
 
     /**
@@ -733,6 +744,11 @@ Clay || (function(win, doc, loc) {
         return ALIAS_toString.call(obj) === TYPEOF_ARRAY;
     }
     function isObject(obj) {
+        if (ENV.IE678) {
+            if (obj === null || obj === undefined) {
+                return false;
+            }
+        }
         return ALIAS_toString.call(obj) === TYPEOF_OBJECT;
     }
     function isRegexp(obj) {
@@ -743,11 +759,9 @@ Clay || (function(win, doc, loc) {
     }
     function isNull(obj) {
         return obj === null;
-//        return ALIAS_toString.call(obj) === TYPEOF_NULL;
     }
     function isUndefined(obj) {
         return obj === undefined;
-//        return ALIAS_toString.call(obj) === TYPEOF_UNDEFINED || obj === undefined;
     }
     function isFunction(obj) {
         return ALIAS_toString.call(obj) === TYPEOF_FUNCTION;
@@ -833,7 +847,7 @@ Clay || (function(win, doc, loc) {
      */
     function stringToDomElement(html, root) {
         root = root || doc;
-        if (ENV.IE678) {
+        if (ENV.IE6789) {
             var ph = root.createElement('div');
             ph.innerHTML = html;
             return ph.firstChild;
@@ -936,7 +950,7 @@ Clay || (function(win, doc, loc) {
     }
 
     /**
-     * フォーム内のインプットパーツのvalueをObjectとして取得する
+     * フォーム内ののvalueをPOST用データとして取得する
      *
      * @param {Node} form
      * @return {Object}
@@ -966,10 +980,12 @@ Clay || (function(win, doc, loc) {
         i = 0;
         while (e = elms[i++]) {
             // 無効・未チェックの項目はスキップ
+            // form.elementsに含まれるfieldset要素もスキップ
             if (
                 e.disabled === true ||
                 e.type === 'radio'    && e.checked === false ||
                 e.type === 'checkbox' && e.checked === false ||
+                e.tagName === 'FIELDSET' ||
                 0
             ) {
                 continue;
@@ -1222,7 +1238,7 @@ Clay || (function(win, doc, loc) {
     }
 
     /**
-     * 必要なモジュールをJunctionLoadを通して読み込むんでからCALLBACKを実行する
+     * 必要なモジュールをModuleListLoaderを通して読み込んでからCALLBACKを実行する
      * DOMの構築を待つ
      *
      * @example
@@ -1237,6 +1253,7 @@ Clay || (function(win, doc, loc) {
     function KNEAD_ModuleResolver(modules, callback) {
         modules = (typeof modules === 'string') ? [modules] : modules;
 
+        // ここで溜められたcallbackは ModuleListLoader#_junction 内で解決される
         STACK_LOAD_CALLBACKS.push(callback);
         ModuleListLoader(modules);
     }
@@ -1258,7 +1275,7 @@ Clay || (function(win, doc, loc) {
 
     /**
      * モジュールを追加する
-     * 他の依存モジュールが宣言されていれば，ModuleListLoader
+     * 他の依存モジュールが宣言されていれば，ModuleListLoaderを実行する
      *
      * @param {String} path
      * @param {Array} dependencies
@@ -1275,7 +1292,7 @@ Clay || (function(win, doc, loc) {
     }
 
     /**
-     * モジュールの依存関係を宣言する
+     * モジュールの依存関係を事前に宣言する
      *
      * @param {Object} dependencies
      * @return {void}
@@ -1286,7 +1303,8 @@ Clay || (function(win, doc, loc) {
 
     /**
      * 与えられたモジュールのリストをロードする
-     * LOAD_REMAININGが0になった時点で，junctionからcallbackを実行
+     * スクリプトロードには，_junctionが渡される．
+     * _junctionが監視するLOAD_REMAININGが0になった時点でcallbackを実行
      *
      * @param {Array} list
      * @return {void}
@@ -1302,7 +1320,7 @@ Clay || (function(win, doc, loc) {
 
         while (item = list[i++]) {
             if (!CACHE_MODULE[item]) {
-                // あらかじめ宣言された依存関係があればロードする
+                // 事前に宣言された依存関係があればロードする
                 if (depend = MODULE_LOAD_DEPENDENCIES[item]) {
                     ModuleListLoader(depend);
                 }
@@ -1369,7 +1387,7 @@ Clay || (function(win, doc, loc) {
         // @todo issue: mobile browser判定
         // @todo issue: ゲーム機類の判定
         // @todo issue: 単純なRegExp#testとString#indexOfに分解して再構成
-        var ua     = navigator.userAgent.toUpperCase(),
+        var ua     = nav.userAgent.toUpperCase(),
             RE_RENDERRING_ENGINE = /(TRIDENT|WEBKIT|GECKO|PRESTO)\/([\d\.]+)/,
             RE_MOBILE_DEVICE     = /(?=ANDROID).+(MOBILE)|(ANDROID|IPAD|IPHONE|IPOD|BLACKBERRY|WINDOWS PHONE|WEBOS)/,
             RE_MOBILE_OS         = /(ANDROID|[IPHONE ]?OS|BLACKBERRY\d+|WINDOWS PHONE OS|WEBOS)[\s\/]([\d\._]+)/,
@@ -2547,10 +2565,24 @@ Clay || (function(win, doc, loc) {
         return rv;
     }
 
+    /**
+     * 指定した要素の子孫要素をすべて返す
+     * FindChildrenの再帰オプションエイリアス
+     *
+     * @param elm
+     * @return {Array}
+     */
     function FindDescendants(elm) {
         return FindChildren(elm, true);
     }
 
+    /**
+     * 指定した要素の先祖要素をすべて返す
+     * FindParentの再帰オプションエイリアス
+     *
+     * @param elm
+     * @return {Array}
+     */
     function FindAncestors(elm) {
         return FindParent(elm, true);
     }
@@ -2875,7 +2907,7 @@ Clay || (function(win, doc, loc) {
         EventOn(doc, 'load', _readyStackExec);
     }
 
-})(window, document, location);
+})(window, document, location, navigator);
 
 /*
     http://www.JSON.org/json2.js

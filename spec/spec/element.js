@@ -170,7 +170,11 @@ describe('Clay.element', function() {
         expect(fugaChild.parentNode).toBe(fuga);
         Clay.elm.replace(hogeChild, fugaChild);
         expect(fugaChild.parentNode).toBe(hoge);
-        expect(hogeChild.parentNode).toBeNull();
+        if (!Clay.env.IE678) {
+            expect(hogeChild.parentNode).toBeNull();
+        } else {
+            expect(hogeChild.parentNode.nodeType).toBe(11);
+        }
 
         // 親子関係を失ったfugaChildとfuga（のouterHTML）を入れ替える
         Clay.elm.replace(fugaChild, fuga.outerHTML);
