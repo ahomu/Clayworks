@@ -19,9 +19,6 @@ describe('Clay.util', function() {
             'withvalue' : 'withvalue',
             'multiplevalue'  : ['item2', 'item3']
         });
-        Clay.http.get('/', function(res) {
-            console.log(res);
-        }, {data:data});
     });
 
     afterEach(function() {

@@ -968,8 +968,9 @@ Clay || (function(win, doc, loc, nav) {
         }
 
         var elms = toArray(form.elements),
-            e, i, k, pos, isAry, name, val, rv = {},
-            list = [], li;
+            e, i, pos, isAry, name, val, rv = {},
+            list = [], li,
+            option, j, jz;
 
         // form.elementsのHTMLCollectionにtype="image"は含まれない
         // innerHTMLにtype="image"らしいのがあれば探索してみる
@@ -1006,31 +1007,22 @@ Clay || (function(win, doc, loc, nav) {
             // multiple属性のついたSELECT要素
             // nameが[]になっていなければ，multipleであってもデータ送信しない
             if (e.tagName === 'SELECT' && e.multiple === true && isAry) {
-                var option, j = 0, jz = e.length;
+                rv[name] || (rv[name] = []);
 
-                val = [];
+                j   = 0;
+                jz  = e.length;
                 for (; j<jz; j++) {
                     option = e[j];
                     if (option.selected === true) {
-                        val.push(option.value);
+                        rv[name].push(option.value);
                     }
                 }
-            }
-
-            if (isString(val)) {
-                if (isAry) {
-                    rv[name] || (rv[name] = []);
-                    rv[name].push(val);
-                } else {
-                    rv[name] = val;
-                }
-            } else {
+            } else if (isAry) {
                 rv[name] || (rv[name] = []);
-                for (k in val) {
-                    if (val.hasOwnProperty(k)) {
-                        rv[name].push(val[k]);
-                    }
-                }
+
+                rv[name].push(val);
+            } else {
+                rv[name] = val;
             }
         }
 
