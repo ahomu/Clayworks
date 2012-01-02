@@ -64,7 +64,7 @@ Clay || (function(win, doc, loc, nav) {
             off     : EventOff,         // *1
             emit    : EventEmit,        // *1
 //            once    : EventOnce,
-//            cansel  : EventOnceCansel,
+//            cancel  : EventOnceCancel,
             pub     : EventPublish,
             sub     : EventSubscribe
         }),
@@ -288,9 +288,8 @@ Clay || (function(win, doc, loc, nav) {
      * 内部正規表現
      */
     var RE_SELECTOR_QUERY = /^([.#]?)[\w\-_]+$/,
-        RE_TRIM_LEFT      = /^[\s　]*/,
-        RE_TRIM_RIGHT     = /[\s　]*$/,
-        RE_TYPE_DETECT    = /\[object (\w+)\]/;
+        RE_TRIM_LEFT      = /^\s+/,
+        RE_TRIM_RIGHT     = /\s+$/;
 
     /**
      * 代替@IE属性
@@ -795,7 +794,6 @@ Clay || (function(win, doc, loc, nav) {
      * @param {Object} obj
      * @return {void}
      */
-    // @todo issue: assert使用箇所をビルドスクリプトなノリで消せるようにする
     function assertString(obj) {
         if (!isString(obj)) { throw new TypeError(obj+' is not a String.'); }
     }
@@ -952,6 +950,7 @@ Clay || (function(win, doc, loc, nav) {
 
     /**
      * フォーム内のvalueをPOST用データとして取得する
+     * @see http://havelog.ayumusato.com/develop/javascript/e312-func_form_data2object.html
      *
      * valueなしoption要素について
      *   valueなしのoption要素は内包テキストがvalueになるはずだが，
@@ -999,7 +998,7 @@ Clay || (function(win, doc, loc, nav) {
                 continue;
             }
 
-            pos   = e.name.indexOf('[');
+            pos   = e.name.lastIndexOf('[');
             isAry = pos !== -1;
             name  = isAry ? e.name.substr(0, pos) : e.name;
             val   = e.value;
@@ -1396,7 +1395,6 @@ Clay || (function(win, doc, loc, nav) {
     function EnvironmentDetector() {
         // @todo issue: mobile browser判定
         // @todo issue: ゲーム機類の判定
-        // @todo issue: 単純なRegExp#testとString#indexOfに分解して再構成
         var ua     = nav.userAgent.toUpperCase(),
             RE_RENDERRING_ENGINE = /(TRIDENT|WEBKIT|GECKO|PRESTO)\/([\d\.]+)/,
             RE_MOBILE_DEVICE     = /(?=ANDROID).+(MOBILE)|(ANDROID|IPAD|IPHONE|IPOD|BLACKBERRY|WINDOWS PHONE|WEBOS)/,
@@ -1551,13 +1549,13 @@ Clay || (function(win, doc, loc, nav) {
      * @param clazz
      */
     function AdaptiveGetElementsByClassName(clazz) {
-        var elems = this.getElementsByTagName('*'),
+        var elms = this.getElementsByTagName('*'),
           evClass = ' '+clazz+' ',
                 i = 0,
                rv = [],
                 e;
 
-        while (e = elems[i]) {
+        while (e = elms[i]) {
             if (e.nodeType === Node.ELEMENT_NODE && (' '+e.className+' ').indexOf(evClass) !== -1) {
                 rv.push(e);
             }
@@ -1726,10 +1724,10 @@ Clay || (function(win, doc, loc, nav) {
      * DOMイベントを追加
      *
      * Pattern1 ( bind )
-     *   (elem) type, handler
+     *   (elm) type, handler
      *
      * Pattern2 ( delegate / live )
-     *   (elem) type, expr, handler
+     *   (elm) type, expr, handler
      *
      * @return {void}
      */
@@ -1764,10 +1762,10 @@ Clay || (function(win, doc, loc, nav) {
      * DOMイベントを破棄
      *
      * Pattern1 ( unbind )
-     *   (elem) type, handler
+     *   (elm) type, handler
      *
      * Pattern2 ( undelegate / unlive )
-     *   (elem) type, expr, handler
+     *   (elm) type, expr, handler
      *
      * @return {void}
      */
@@ -2256,7 +2254,7 @@ Clay || (function(win, doc, loc, nav) {
             }
         }
 
-        // @todo issue: 複数要素に対応する？
+        // Claylumpが渡ったときは，最初の要素のみ取り扱う
         if (addElm instanceof Claylump) {
             addElm = addElm._elms[0];
         }
@@ -2279,9 +2277,6 @@ Clay || (function(win, doc, loc, nav) {
                 break;
             case 'afterEnd'     : // after
                 elm.parentNode.insertBefore(addElm, elm.nextSibling);
-                break;
-            default :
-                // @todo issue: 例外
                 break;
         }
     }
