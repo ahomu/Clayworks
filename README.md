@@ -19,13 +19,13 @@
          * 今の時点でセレクタエンジンを搭載してないので，セレクタはブラウザ依存しています
          * メソッド群は本体スクリプトの冒頭を読めば大体書いてあります
          */
-        var elmMado = c.elem('#mado'),
-            elmHomu = c.elem('#homu'),
-            elmAry  = c.elem('.qbee');
+        var elmMado = c.elm('#mado'),
+            elmHomu = c.elm('#homu'),
+            elmAry  = c.elm('.qbee');
 
-        c.elem.clazz(elmAry, '+mamiru');
+        c.elm.clazz(elmAry, '+mamiru');
 
-        c.elem.replace(elmMado, elmHomu);
+        c.elm.replace(elmMado, elmHomu);
 
 
         /**
@@ -40,3 +40,12 @@
             // click! click!
         });
     });
+
+##Hayate.jsの統合
+
+Clayworks.jsは，セレクタエンジン[Hayate.js](https://github.com/ahomu/Hayate "ahomu/Hayate - GitHub")の統合をサポートしています．
+
+Hayate.jsの統合は，（今のところ）消極的に行うことを推奨しています．querySelectorAllが利用できない，または実装が半端なIE8以前でのみHayate.jsを読み込んで統合します．その他のブラウザではquerySelectorAllが利用されます．
+
+    <!--[if lte IE 9]><script src="/src/js/hayate.js"></script><![endif]-->
+    <script src="/src/css/clayworks.js"></script>

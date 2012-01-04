@@ -34,7 +34,7 @@ describe('Clay.find', function() {
     });
 
     it('can find element of decendants', function() {
-        var descendants = Clay.find.descendants(list),
+        var descendants = Clay.find.children(list, true),
             e, p, i = 0, iz = descendants.length;
 
         expect(iz).toBe(5);
@@ -51,19 +51,19 @@ describe('Clay.find', function() {
         }
 
         // have no result
-        expect(Clay.find.descendants(paragraph)).toEqual([]);
+        expect(Clay.find.children(paragraph, true)).toEqual([]);
     });
 
     it('can find element of ancestors', function() {
-        var ancestors = Clay.find.ancestors(childList),
+        var ancestors = Clay.find.parent(childList, true),
             i = 0, iz = ancestors.length;
 
         for (; i<iz; i++) {
-            expect(Clay.find.descendants(ancestors[i])).toContain(childList);
+            expect(Clay.find.children(ancestors[i], true)).toContain(childList);
         }
 
         // have no result
-        expect(Clay.find.ancestors(haveNotParent)).toEqual([]);
+        expect(Clay.find.parent(haveNotParent, true)).toEqual([]);
     });
 
     it('can find element of siblings', function() {

@@ -35,7 +35,6 @@
 var Clay;
 Clay || (function(win, doc, loc, nav) {
 
-    // shoud be strict!!
     "use strict";
 
     /**
@@ -68,7 +67,7 @@ Clay || (function(win, doc, loc, nav) {
             pub     : EventPublish,
             sub     : EventSubscribe
         }),
-        element : shake(ElementSelector,{
+        element : shake(ElementQuery,{
             clazz   : ElementClass,     // *1    *3
             css     : ElementStyle,     // *1    *3
             attr    : ElementAttribute, // *1    *3
@@ -99,9 +98,7 @@ Clay || (function(win, doc, loc, nav) {
             siblings: FindSiblings,     // *1    *3
             closest : FindClosest,      // *1    *3
             next    : FindNext,         // *1    *3
-            prev    : FindPrev,         // *1    *3
-            descendants: FindDescendants,//*1    *3
-            ancestors  : FindAncestors   //*1    *3
+            prev    : FindPrev          // *1    *3
         },
         http    : shake(NetHttp,{
             get     : NetHttpGet,
@@ -201,9 +198,8 @@ Clay || (function(win, doc, loc, nav) {
     /**
      * 内部いろいろ変数
      */
-    var HEAD = doc.getElementsByTagName('head')[0],
-        ENV  = Clay.env,
-
+    var HEAD        = doc.getElementsByTagName('head')[0],
+        ENV         = Clay.env,
         BASE_URL    = loc.protocol+'//'+loc.host+loc.pathname.replace(/[a-z-_.]+$/i, ''),
         SCRIPT_ROOT = (function() {
             var scripts = HEAD.getElementsByTagName('script'),
@@ -218,6 +214,8 @@ Clay || (function(win, doc, loc, nav) {
             }
             return null;
         })(),
+
+        HAYATE = win['Hayate'],
 
         INCREMENT_JSONP   = 0,
         INCREMENT_DATASET = 0,
@@ -249,7 +247,8 @@ Clay || (function(win, doc, loc, nav) {
     /**
      * 関数エイリアス
      */
-    var ALIAS_toString = Object.prototype.toString;
+    var ALIAS_toString   = Object.prototype.toString,
+        ALIAS_mergeArray = Array.prototype.push;
 
     /**
      * 内部スタック
@@ -288,8 +287,9 @@ Clay || (function(win, doc, loc, nav) {
      * 内部正規表現
      */
     var RE_SELECTOR_QUERY = /^([.#]?)[\w\-_]+$/,
-        RE_TRIM_LEFT      = /^\s+/,
-        RE_TRIM_RIGHT     = /\s+$/;
+        RE_SELECTOR_IDENT = /#[^\s]+$/,
+        RE_TRIM_LEFT      = /^[\s　]+/,
+        RE_TRIM_RIGHT     = /[\s　]+$/;
 
     /**
      * 代替@IE属性
@@ -323,14 +323,14 @@ Clay || (function(win, doc, loc, nav) {
      * String#trim
      */
     function StringTrim() {
-        return this.replace(RE_TRIM_LEFT  , '').replace(RE_TRIM_RIGHT, '');
+        return this.replace(RE_TRIM_LEFT, '').replace(RE_TRIM_RIGHT, '');
     }
 
     /**
      * String#trimLeft
      */
     function StringTrimLeft() {
-        return this.replace(RE_TRIM_LEFT  , '');
+        return this.replace(RE_TRIM_LEFT, '');
     }
 
     /**
@@ -609,11 +609,139 @@ Clay || (function(win, doc, loc, nav) {
         for (; i<iz; i++) {
             item = this[i];
             if (item != null && item.nodeType && item.nodeType === Node.ELEMENT_NODE) {
-                rv = func.apply(this, [item].concat(args));
+                item = [item];
+                ALIAS_mergeArray.apply(item, args);
+                rv = func.apply(this, item);
                 rv !== void 0 && rvAry.push(rv);
             }
         }
         return (rvAry.length !== 0) ? rvAry : this;
+    }
+
+    //==================================================================================================================
+    // Claylump
+
+    /**
+     * Claylump生成器
+     *
+     * @param {String} expr
+     */
+    function ClaylumpFactory(expr) {
+        var elms;
+        if (isString(expr)) {
+            elms = ElementQuery(expr);
+        } else {
+            elms = expr;
+        }
+        return new Claylump(elms);
+    }
+
+    /**
+     * DOM操作系のショートハンドコレクション
+     * Event＆Elem系のメソッドをチェインできる
+     *
+     * @constructor
+     * @param {Node|Array} elms
+     */
+    function Claylump(elms) {
+        if (!isArray(elms)) {
+            elms = [elms];
+        }
+        var i = 0, iz = elms.length, that = this;
+
+        this._elms    = elms;
+        this.next     = _lumpNext;
+        this.hasNext  = _lumpHasNext;
+        this.rewind   = _lumpRewind;
+        this.current  = _lumpCurrent;
+        this.i        = _lumpIndex;
+        this.toString = _lumpToString;
+
+        function _lumpNext() {
+            if (!that.hasNext()) {
+                return null;
+            }
+            return that._elms[i++];
+        }
+        function _lumpHasNext() {
+            return i < iz;
+        }
+        function _lumpRewind() {
+            iz = 0;
+        }
+        function _lumpCurrent() {
+            return that._elms[i];
+        }
+        function _lumpIndex(i) {
+            return that._elms[i];
+        }
+        function _lumpToString() {
+            return TYPEOF_CLAYLUMP;
+        }
+    }
+
+    // ショートハンドを合成
+    fill(Claylump.prototype, {
+        on      : ClayFinkelize(EventOn),
+        off     : ClayFinkelize(EventOff),
+        emit    : ClayFinkelize(EventEmit),
+
+        clazz   : ClayFinkelize(ElementClass),
+        css     : ClayFinkelize(ElementStyle),
+        attr    : ClayFinkelize(ElementAttribute),
+        data    : ClayFinkelize(ElementDataset),
+        html    : ClayFinkelize(ElementHTML),
+        text    : ClayFinkelize(ElementText),
+
+        last    : ClayFinkelize(ElementInsLast),
+        first   : ClayFinkelize(ElementInsFirst),
+        before  : ClayFinkelize(ElementInsBefore),
+        after   : ClayFinkelize(ElementInsAfter),
+        insert  : ClayFinkelize(ElementInsert),
+        replace : ClayFinkelize(ElementReplace),
+        wrap    : ClayFinkelize(ElementWrap),
+
+        empty   : ClayFinkelize(ElementEmpty),
+        remove  : ClayFinkelize(ElementRemove),
+
+        swap    : ClayFinkelize(ElementSwap),
+        clone   : ClayFinkelize(ElementClone),
+
+        absrect : ClayFinkelize(ElementAbsRectPos),
+        relrect : ClayFinkelize(ElementRelRectPos),
+        center  : ClayFinkelize(ElementSetCenter),
+
+        parent  : ClayFinkelize(FindParent),
+        children: ClayFinkelize(FindChildren),
+        siblings: ClayFinkelize(FindSiblings),
+        closest : ClayFinkelize(FindClosest),
+        next    : ClayFinkelize(FindNext),
+        prev    : ClayFinkelize(FindPrev)
+    });
+
+    /**
+     * 部分適用
+     *
+     * @this {Claylump}
+     * @param func
+     */
+    function ClayFinkelize(func) {
+        function _finkelize() {
+            var i = 0, elms = this._elms, elm, rv, rvAry = [];
+
+            while (elm = elms[i++]) {
+                elm = [elm];
+                ALIAS_mergeArray.apply(elm, toArray(arguments));
+                rv = func.apply(this, elm);
+                rv !== void 0 && rvAry.push(rv);
+            }
+
+            // rvAry.lengthが0でなければ結果をreturnする : 配列の長さが1なら，配列を解除して返す
+            // rvAry.lengthが0であれば，thisを返してチェーンを継続する
+            return rvAry.length !== 0 ? (rvAry.length === 1 ? rvAry[0] : rvAry)
+                                      : this;
+        }
+        return _finkelize;
     }
 
     //==================================================================================================================
@@ -952,12 +1080,6 @@ Clay || (function(win, doc, loc, nav) {
      * フォーム内のvalueをPOST用データとして取得する
      * @see http://havelog.ayumusato.com/develop/javascript/e312-func_form_data2object.html
      *
-     * valueなしoption要素について
-     *   valueなしのoption要素は内包テキストがvalueになるはずだが，
-     *   IE678のselect.value, IE67のoption.valueから値を取れない．
-     *   加えて <option value="">なし</option> と，<option>なし</option> の区別が，
-     *   HTMLを検査しないと分からないので対応しないことにしている
-     *
      * @param {Node} form
      * @return {Object}
      */
@@ -1026,131 +1148,6 @@ Clay || (function(win, doc, loc, nav) {
         }
 
         return rv;
-    }
-
-    //==================================================================================================================
-    // Claylump
-
-    /**
-     * Claylump生成器
-     *
-     * @param {String} expr
-     */
-    function ClaylumpFactory(expr) {
-        var elms;
-        if (isString(expr)) {
-            elms = ElementSelector(expr);
-        } else {
-            elms = expr;
-        }
-        return new Claylump(elms);
-    }
-
-    /**
-     * DOM操作系のショートハンドコレクション
-     * Event＆Elem系のメソッドをチェインできる
-     *
-     * @constructor
-     * @param {Node|Array} elms
-     */
-    function Claylump(elms) {
-        if (!isArray(elms)) {
-            elms = [elms];
-        }
-        var i = 0, iz = elms.length, that = this;
-
-        this._elms    = elms;
-        this.next     = _lumpNext;
-        this.hasNext  = _lumpHasNext;
-        this.rewind   = _lumpRewind;
-        this.current  = _lumpCurrent;
-        this.i        = _lumpIndex;
-        this.toString = _lumpToString;
-
-        function _lumpNext() {
-            if (!that.hasNext()) {
-                return null;
-            }
-            return that._elms[i++];
-        }
-        function _lumpHasNext() {
-            return i < iz;
-        }
-        function _lumpRewind() {
-            iz = 0;
-        }
-        function _lumpCurrent() {
-            return that._elms[i];
-        }
-        function _lumpIndex(i) {
-            return that._elms[i];
-        }
-        function _lumpToString() {
-            return TYPEOF_CLAYLUMP;
-        }
-    }
-
-    // ショートハンドを合成
-    fill(Claylump.prototype, {
-        on      : ClayFinkelize(EventOn),
-        off     : ClayFinkelize(EventOff),
-        emit    : ClayFinkelize(EventEmit),
-
-        clazz   : ClayFinkelize(ElementClass),
-        css     : ClayFinkelize(ElementStyle),
-        attr    : ClayFinkelize(ElementAttribute),
-        data    : ClayFinkelize(ElementDataset),
-        html    : ClayFinkelize(ElementHTML),
-        text    : ClayFinkelize(ElementText),
-
-        last    : ClayFinkelize(ElementInsLast),
-        first   : ClayFinkelize(ElementInsFirst),
-        before  : ClayFinkelize(ElementInsBefore),
-        after   : ClayFinkelize(ElementInsAfter),
-        insert  : ClayFinkelize(ElementInsert),
-        replace : ClayFinkelize(ElementReplace),
-        wrap    : ClayFinkelize(ElementWrap),
-
-        empty   : ClayFinkelize(ElementEmpty),
-        remove  : ClayFinkelize(ElementRemove),
-
-        swap    : ClayFinkelize(ElementSwap),
-        clone   : ClayFinkelize(ElementClone),
-
-        absrect : ClayFinkelize(ElementAbsRectPos),
-        relrect : ClayFinkelize(ElementRelRectPos),
-        center  : ClayFinkelize(ElementSetCenter),
-
-        parent  : ClayFinkelize(FindParent),
-        children: ClayFinkelize(FindChildren),
-        siblings: ClayFinkelize(FindSiblings),
-        closest : ClayFinkelize(FindClosest),
-        next    : ClayFinkelize(FindNext),
-        prev    : ClayFinkelize(FindPrev),
-        descendants: ClayFinkelize(FindDescendants),
-        ancestors  : ClayFinkelize(FindAncestors)
-    });
-
-    /**
-     * 部分適用
-     *
-     * @this {Claylump}
-     * @param func
-     */
-    function ClayFinkelize(func) {
-        function _finkelize() {
-            var i = 0, elms = this._elms, elm, rv, rvAry = [];
-
-            while (elm = elms[i++]) {
-                rv = func.apply(this, [elm].concat(toArray(arguments)));
-                rv !== void 0 && rvAry.push(rv);
-            }
-            // rvAry.lengthが0でなければ結果をreturnする : 配列の長さが1なら，配列を解除して返す
-            // rvAry.lengthが0であれば，thisを返してチェーンを継続する
-            return rvAry.length !== 0 ? (rvAry.length === 1 ? rvAry[0] : rvAry)
-                                      : this;
-        }
-        return _finkelize;
     }
 
     //==================================================================================================================
@@ -1573,7 +1570,7 @@ Clay || (function(win, doc, loc, nav) {
      * Mozillaを対象にouterHTMLを埋める
      */
     function AdaptiveOuterHTML() {
-        var r = document.createRange(), tub = document.createElement('div');
+        var r = doc.createRange(), tub = doc.createElement('div');
         r.selectNode(this);
         tub.appendChild(r.cloneContents());
         r.detach();
@@ -1657,7 +1654,7 @@ Clay || (function(win, doc, loc, nav) {
                 // イベントターゲット
                 evtTarget    = event.target;
 
-                scopes = ElementSelector(expr, event.currentTarget);
+                scopes = ElementQuery(expr, event.currentTarget);
 
                 if (!isArray(scopes)) {
                     scopes = [scopes];
@@ -1946,59 +1943,111 @@ Clay || (function(win, doc, loc, nav) {
     //==================================================================================================================
     // Selector
     /**
-     * Selector
+     * セレクタクエリの受け取り
      *
      * @param {String} expr
-     * @param {Node}   [context]
+     * @param {Node}   [contexts]
      * @return {Array|Node}
      */
-    function ElementSelector(expr, context) {
-        // @todo issue: 自力セレクターエンジンを載せるかどうか
+    function ElementQuery(expr, contexts) {
+        var rv = [],
+            ctx, i = 0,
+            tmp, j, p, e, uid, idx;
 
-        var rv;
+        // Claylumpが渡されたときは中身を抽出する
+        if (isClaylump(contexts)) {
+            contexts = contexts._elms;
+        }
 
-        context = context || doc;
+        // ※ Hayate.jsを利用するときに配列でコンテキストを与えると，セレクタが複数回走るので低速
+        // IE分岐コメントでHayate.jsを読み分けていれば，IE以外でこの低速化は起こらない
+        if (!!HAYATE) {
+            if (isArray(contexts)) {
+                tmp = [];
+                j   = 0;
+                while (ctx = contexts[i++]) {
+                    ALIAS_mergeArray.apply(tmp, HAYATE(expr, ctx));
+                }
+
+                p   = 0;
+                idx = {};
+                while (e = tmp[j++]) {
+                    uid = e.uniqueId;
+                    if (!idx[uid]) {
+                        idx[uid] = true;
+                        rv[p++] = e;
+                    }
+                }
+            } else {
+                rv = HAYATE(expr, contexts);
+            }
+        } else {
+            rv = ElementSelector(expr, contexts);
+        }
+
+        // 最後がIDセレクタで終わるクエリだった場合のみ，arrayを剥がす
+        if (rv.length === 1 && !!RE_SELECTOR_IDENT.test(expr.trim())) {
+            return rv[0]
+        } else {
+            return rv;
+        }
+    }
+
+    /**
+     * Selector
+     * ブラウザ実装に依存する簡易セレクター
+     *
+     * @param {String} expr
+     * @param {Node|Array} roots
+     * @return {Array}
+     */
+    function ElementSelector(expr, roots) {
+        var rv = [], root, i = 0;
+
+        roots = roots || [doc];
+
+        if (!isArray(roots)) {
+            roots = [roots];
+        }
 
         if (RE_SELECTOR_QUERY.test(expr)) {
             switch(RegExp.$1) {
                 case '#':
-                    rv = SelectorById(context, expr.substr(1));
+                    while (root = roots[i++]) {
+                        if (root.nodeType < 9) {
+                            root = root.ownerDocument;
+                        }
+                        ALIAS_mergeArray.apply(rv, [root.getElementById(expr.substr(1))]);
+                    }
                 break;
                 case '.':
-                    rv = SelectorByClassName(context, expr.substr(1));
+                    if (roots[0].getElementsByClassName) {
+                        while (root = roots[i++]) {
+                            ALIAS_mergeArray.apply(rv, toArray(root.getElementsByClassName(expr.substr(1))));
+                        }
+                    } else {
+                        while (root = roots[i++]) {
+                            ALIAS_mergeArray.apply(rv, toArray(AdaptiveGetElementsByClassName.call(root, expr.substr(1))));
+                        }
+                    }
                 break;
                 default:
-                    rv = SelectorByTagName(context, expr);
+                    while (root = roots[i++]) {
+                        ALIAS_mergeArray.apply(rv, toArray(root.getElementsByTagName(expr)));
+                    }
                 break;
             }
         } else {
-            rv = SelectorByQuery(context, expr);
+            if (roots[0].querySelectorAll) {
+                while (root = roots[i++]) {
+                    ALIAS_mergeArray.apply(rv, toArray(root.querySelectorAll(expr)));
+                }
+            } else {
+                throw new Error('This browser could not understand recevieing query.');
+            }
         }
-        return (rv && rv.length !== void 0 && rv.tagName !== 'FORM') ? toArray(rv) : rv;
-    }
 
-    function SelectorById (context, id) {
-        return context.getElementById(id);
-    }
-
-    function SelectorByClassName(context, klass) {
-        if (context.getElementsByClassName) {
-            return context.getElementsByClassName(klass);
-        } else {
-            return AdaptiveGetElementsByClassName.call(context, klass);
-        }
-    }
-
-    function SelectorByTagName(context, tagName) {
-        return context.getElementsByTagName(tagName);
-    }
-
-    function SelectorByQuery(context, expr) {
-        if (context.querySelectorAll) {
-            return context.querySelectorAll(expr);
-        } else {
-            return false;
-        }
+        return rv;
     }
 
     //==================================================================================================================
@@ -2563,33 +2612,11 @@ Clay || (function(win, doc, loc, nav) {
             if (e.nodeType === Node.ELEMENT_NODE) {
                 rv.push(e);
                 if (r && e.childNodes) {
-                    rv = rv.concat(FindChildren(e, true));
+                    ALIAS_mergeArray.apply(rv, FindChildren(e, true));
                 }
             }
         }
         return rv;
-    }
-
-    /**
-     * 指定した要素の子孫要素をすべて返す
-     * FindChildrenの再帰オプションエイリアス
-     *
-     * @param elm
-     * @return {Array}
-     */
-    function FindDescendants(elm) {
-        return FindChildren(elm, true);
-    }
-
-    /**
-     * 指定した要素の先祖要素をすべて返す
-     * FindParentの再帰オプションエイリアス
-     *
-     * @param elm
-     * @return {Array}
-     */
-    function FindAncestors(elm) {
-        return FindParent(elm, true);
     }
 
     /**
