@@ -65,7 +65,8 @@ Clay || (function(win, doc, loc, nav) {
 //            once    : EventOnce,
 //            cancel  : EventOnceCancel,
             pub     : EventPublish,
-            sub     : EventSubscribe
+            sub     : EventSubscribe,
+            unsub   : EventUnsubscribe
         }),
         element : shake(ElementQuery,{
             clazz   : ElementClass,     // *1    *3
@@ -1918,17 +1919,40 @@ Clay || (function(win, doc, loc, nav) {
 
         while (tmp = stack[i++]) {
             if (tmp === subscriber) {
-                return false;
+                return;
             }
         }
         stack.push(subscriber);
+    }
+
+
+    /**
+     * DOM非依存の独自イベントを購読解除
+     *
+     * @param {String}   type
+     * @param {Function} [unsubscriber]
+     * @return {void}
+     */
+    function EventUnsubscribe(type, unsubscriber) {
+        var stack = (STACK_PUBSUB_HANDLERS[type] || (STACK_PUBSUB_HANDLERS[type] = [])),
+            i = -1, tmp;
+
+        if (!unsubscriber) {
+            stack = [];
+        } else {
+            while (tmp = stack[++i]) {
+                if (tmp === unsubscriber) {
+                    stack.splice(i, 1);
+                }
+            }
+        }
     }
 
     /**
      * DOM非依存の独自イベントを発行
      *
      * @param {String}       type
-     * @param {Array|Object} args
+     * @param {Array|Object} [args]
      * @return {void}
      */
     function EventPublish(type, args) {
