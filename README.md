@@ -16,7 +16,6 @@
          * basics
          *
          * c.elemで取得するとピュアなElementを直接返します
-         * 今の時点でセレクタエンジンを搭載してないので，セレクタはブラウザ依存しています
          * メソッド群は本体スクリプトの冒頭を読めば大体書いてあります
          */
         var elmMado = c.elm('#mado'),
@@ -47,5 +46,5 @@ Clayworks.jsは，セレクタエンジン[Hayate.js](https://github.com/ahomu/H
 
 Hayate.jsの統合は，（今のところ）消極的に行うことを推奨しています．querySelectorAllが利用できない，または実装が半端なIE8以前でのみHayate.jsを読み込んで統合します．その他のブラウザではquerySelectorAllが利用されます．
 
-    <!--[if lte IE 9]><script src="/src/js/hayate.js"></script><![endif]-->
-    <script src="/src/css/clayworks.js"></script>
+    <!--[if lt IE 9]><script src="/src/js/hayate.js"></script><![endif]-->
+    <script src="/src/js/clayworks.js"></script>
