@@ -6,12 +6,7 @@
  * Licensed under the MIT license:
  *  http://www.opensource.org/licenses/mit-license.php
  */
-(function(c_) {
-    c_.register('modules.control', {
-        keys: ControlKeys,
-        drag: ControlDrag
-    });
-
+Clay.register('modules.control', function(c_) {
     /**
      * ショートカットキーを簡略評価
      */
@@ -112,4 +107,8 @@
         }
     }
 
-})(Clay);
+    return {
+        keys: ControlKeys,
+        drag: ControlDrag
+    };
+});

@@ -32,8 +32,7 @@
  *  Google Chrome    newest
  *  Opera            newest
  */
-var Clay;
-Clay || (function(win, doc, loc, nav) {
+(function(win, doc, loc, nav) {
 
     "use strict";
 
@@ -45,7 +44,7 @@ Clay || (function(win, doc, loc, nav) {
     // *1 : Array#elとClaylumpのショートハンドに対応
     // *2 : 追加要素にHTMLStringを使用可
     // *3 : テストケースあり
-    Clay = shake(ClaylumpFactory, {
+    win.Clay = shake(ClaylumpFactory, {
         ready   : ReadyHandler,
         jsload  : ScriptLoader,
 
@@ -1274,7 +1273,7 @@ Clay || (function(win, doc, loc, nav) {
      */
     function ModuleFetcher(path) {
         if (CACHE_MODULE[path]) {
-            return CACHE_MODULE[path];
+            return CACHE_MODULE[path](Clay);
         } else {
             throw new ReferenceError('Specified module have not load yet.');
         }
