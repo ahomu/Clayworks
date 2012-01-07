@@ -130,22 +130,6 @@
                 numeric  : isNumeric,   // *3
                 lump     : isClaylump   // *3
             }),
-            assert  : {
-                string   : assertString,
-                number   : assertNumber,
-                array    : assertArray,
-                object   : assertObject,
-                regexp   : assertRegexp,
-                date     : assertDate,
-                nil      : assertNull,
-                undef    : assertUndefined,
-                callable : assertFunction,
-                bool     : assertBoolean,
-                error    : assertError,
-                element  : assertElement,
-                numeric  : assertNumeric,
-                lump     : assertClaylump
-            },
             size    : {
                 viewport : getViewportSize,
                 document : getDocumentSize,
@@ -399,7 +383,9 @@
      * @return {Array}
      */
     function ArrayFilter(callback, thisArg) {
-        assertFunction(callback);
+        if (!isFunction(callback)) {
+            throw new TypeError('Argument is not a Function.');
+        }
 
         var O = Object(this), i = 0, iz = O.length >>> 0, that = (thisArg || this), rv = [], val;
 
@@ -426,7 +412,9 @@
      * @return {void}
      */
     function ArrayForEach(callback, thisArg) {
-        assertFunction(callback);
+        if (!isFunction(callback)) {
+            throw new TypeError('Argument is not a Function.');
+        }
 
         var O = Object(this), i = 0, iz = O.length >>> 0, that = (thisArg || this);
 
@@ -449,7 +437,9 @@
      * @return {Boolean}
      */
     function ArrayEvery(callback , thisArg) {
-        assertFunction(callback);
+        if (!isFunction(callback)) {
+            throw new TypeError('Argument is not a Function.');
+        }
 
         var O = Object(this), i = 0, iz = O.length >>> 0, that = (thisArg || this);
 
@@ -473,7 +463,9 @@
      * @return {Array}
      */
     function ArrayMap(callback, thisArg) {
-        assertFunction(callback);
+        if (!isFunction(callback)) {
+            throw new TypeError('Argument is not a Function.');
+        }
 
         var O = Object(this), i = 0, iz = O.length >>> 0, that = (thisArg || this), rv = new Array(iz);
         while (i < iz) {
@@ -496,7 +488,9 @@
      * @return {Boolean}
      */
     function ArraySome(callback, thisArg) {
-        assertFunction(callback);
+        if (!isFunction(callback)) {
+            throw new TypeError('Argument is not a Function.');
+        }
 
         var O = Object(this), i = 0, iz = O.length >>> 0, that = (thisArg || this);
         while (i < iz) {
@@ -912,57 +906,6 @@
     }
     function isClaylump(obj) {
         return ''+obj === TYPEOF_CLAYLUMP;
-    }
-
-    /**
-     * assertXXX
-     * タイプチェックをして，不正であれば例外を投げる
-     *
-     * @throw {TypeError}
-     * @param {Object} obj
-     * @return {void}
-     */
-    function assertString(obj) {
-        if (!isString(obj)) { throw new TypeError(obj+' is not a String.'); }
-    }
-    function assertNumber(obj) {
-        if (!isNumber(obj)) { throw new TypeError(obj+' is not a Number.'); }
-    }
-    function assertArray(obj) {
-        if (!isArray(obj)) { throw new TypeError(obj+' is not a Array.'); }
-    }
-    function assertObject(obj) {
-        if (!isObject(obj)) { throw new TypeError(obj+' is not a Object.'); }
-    }
-    function assertRegexp(obj) {
-        if (!isRegexp(obj)) { throw new TypeError(obj+' is not a RegExp.'); }
-    }
-    function assertDate(obj) {
-        if (!isDate(obj)) { throw new TypeError(obj+' is not a Date.'); }
-    }
-    function assertNull(obj) {
-        if (!isNull(obj)) { throw new TypeError(obj+' is not a Null.'); }
-    }
-    function assertUndefined(obj) {
-        if (!isUndefined(obj)) { throw new TypeError(obj+' is not a Undefined.'); }
-    }
-    function assertFunction(obj) {
-        if (!isFunction(obj)) { throw new TypeError(obj+' is not a Function.'); }
-    }
-    function assertBoolean(obj) {
-        if (!isBoolean(obj)) { throw new TypeError(obj+' is not a Boolean.'); }
-    }
-    function assertError(obj) {
-        if (!isError(obj)) { throw new TypeError(obj+' is not a Error.'); }
-    }
-    function assertElement(obj) {
-        if (!isElement(obj)) { throw new TypeError(obj+' is not a Element.'); }
-    }
-    function assertNumeric(obj) {
-        if (!isNumeric(obj)) { throw new TypeError(obj+' is not a Numeric.'); }
-    }
-    function assertClaylump(obj) {
-        if (!isClaylump(obj)) { throw new TypeError(obj+'is not a Claylump Object.'); }
     }
 
     /**
