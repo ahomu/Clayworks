@@ -270,7 +270,7 @@
     /**
      * 内部正規表現
      */
-    var RE_SELECTOR_QUERY = /^([.#]?)[\w\-_]+$/,
+    var RE_SELECTOR_CONCISE = /^([.#]?)[\w\-_]+$/,
         RE_SELECTOR_IDENT = /#[^\s]+$/,
         RE_TRIM_LEFT      = /^[\s　]+/,
         RE_TRIM_RIGHT     = /[\s　]+$/;
@@ -1097,21 +1097,16 @@
     // Executioner
 
     /**
-     * readyの登録振り分け
+     * DOM構築済み判定ゲート
      *
      * @param {Function} handler
-     * @param {String}   [type]
      * @return {void}
      */
-    function ReadyHandler(handler, type) {
-        if (type === void 0) {
-            if (!!FLG_DOM_ALREADY) {
-                handler(Clay);
-            } else {
-                STACK_READY_HANDLERS.push(handler);
-            }
+    function ReadyHandler(handler) {
+        if (!!FLG_DOM_ALREADY) {
+            handler(Clay);
         } else {
-            // @todo issue: その他特殊タイミングのreadyライクイベントに対応する
+            STACK_READY_HANDLERS.push(handler);
         }
     }
 
@@ -1692,7 +1687,7 @@
             break;
 
             default:
-                throw new Error('arugments are missing.');
+                throw new Error('Arugments are missing.');
             break;
         }
         EventDefine(target, type, expr, handler, bubble, false);
@@ -1841,7 +1836,7 @@
                     }
                 break;
                 default:
-                    event = doc.createEvent('event');
+                    event = doc.createEvent('Event');
                     event.initEvent(type, b, c);
                 break;
             }
@@ -1976,7 +1971,7 @@
             roots = [roots];
         }
 
-        if (RE_SELECTOR_QUERY.test(expr)) {
+        if (RE_SELECTOR_CONCISE.test(expr)) {
             switch(RegExp.$1) {
                 case '#':
                     while (root = roots[i++]) {
