@@ -387,12 +387,12 @@
             throw new TypeError('Argument is not a Function.');
         }
 
-        var O = Object(this), i = 0, iz = O.length >>> 0, that = (thisArg || this), rv = [], val;
+        var O = Object(this), i = 0, iz = O.length >>> 0, rv = [], val;
 
         while (i < iz) {
             if (i in O) {
                 val = O[i]; // callback が this を 変化させた場合に備え
-                if (callback.call(that, val, i, O)) {
+                if (callback.call(thisArg, val, i, O)) {
                     rv.push(val);
                 }
             }
@@ -416,11 +416,11 @@
             throw new TypeError('Argument is not a Function.');
         }
 
-        var O = Object(this), i = 0, iz = O.length >>> 0, that = (thisArg || this);
+        var O = Object(this), i = 0, iz = O.length >>> 0;
 
         while (i < iz) {
             if (i in O) {
-                callback.call(that, O[i], i, O);
+                callback.call(thisArg, O[i], i, O);
             }
             i++;
         }
@@ -441,10 +441,10 @@
             throw new TypeError('Argument is not a Function.');
         }
 
-        var O = Object(this), i = 0, iz = O.length >>> 0, that = (thisArg || this);
+        var O = Object(this), i = 0, iz = O.length >>> 0;
 
         while (i < iz) {
-            if (i in O && !callback.call(that, O[i], i, O)) {
+            if (i in O && !callback.call(thisArg, O[i], i, O)) {
                 return false;
             }
             i++;
@@ -467,10 +467,10 @@
             throw new TypeError('Argument is not a Function.');
         }
 
-        var O = Object(this), i = 0, iz = O.length >>> 0, that = (thisArg || this), rv = new Array(iz);
+        var O = Object(this), i = 0, iz = O.length >>> 0, rv = new Array(iz);
         while (i < iz) {
             if (i in O) {
-                rv[i] = callback.call(that, O[i], i, O);
+                rv[i] = callback.call(thisArg, O[i], i, O);
             }
             i++;
         }
@@ -492,9 +492,9 @@
             throw new TypeError('Argument is not a Function.');
         }
 
-        var O = Object(this), i = 0, iz = O.length >>> 0, that = (thisArg || this);
+        var O = Object(this), i = 0, iz = O.length >>> 0;
         while (i < iz) {
-            if (i in O && callback.call(that, O[i], i, O)) {
+            if (i in O && callback.call(thisArg, O[i], i, O)) {
                 return true;
             }
             i++;
@@ -867,7 +867,7 @@
     }
     function isObject(obj) {
         if (ENV.IE678) {
-            if (obj === null || obj === undefined) {
+            if (obj === null || obj === void 0) {
                 return false;
             }
         }
@@ -883,7 +883,7 @@
         return obj === null;
     }
     function isUndefined(obj) {
-        return obj === undefined;
+        return obj === void 0;
     }
     function isFunction(obj) {
         return ALIAS_toString.call(obj) === TYPEOF_FUNCTION;
@@ -3098,7 +3098,7 @@ if (!JSON) {
                     for (k in value) {
                         if (Object.prototype.hasOwnProperty.call(value, k)) {
                             v = walk(value, k);
-                            if (v !== undefined) {
+                            if (v !== void 0) {
                                 value[k] = v;
                             } else {
                                 delete value[k];
