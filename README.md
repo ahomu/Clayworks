@@ -5,7 +5,7 @@
 世間のライブラリが当たり前に行っている処理を自分で実装してみるテスト．
 黒魔術成分僅少です．
 
-##Usage
+##使い方 - Usage
 
 とりあえずレベルのメモ書き
 
@@ -48,3 +48,7 @@ Hayate.jsの統合は，（今のところ）消極的に行うことを推奨�
 
     <!--[if lt IE 9]><script src="/src/js/hayate.js"></script><![endif]-->
     <script src="/src/js/clayworks.js"></script>
+
+##クレジット - Credit
+
+Copyright 2012, Ayumu Sato ( http://havelog.ayumusato.com )

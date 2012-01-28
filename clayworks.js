@@ -2,7 +2,7 @@
  * Clayworks.js
  * 粘土こねこね
  *
- * Copyright (c) 2011 Ayumu Sato ( http://havelog.ayumusato.com )
+ * Copyright (c) 2012 Ayumu Sato ( http://havelog.ayumusato.com )
  *
  * Licensed under the MIT license:
  *  http://www.opensource.org/licenses/mit-license.php
@@ -2568,8 +2568,9 @@
      * @return {Array}
      */
     function FindChildren(elm, r) {
-        var list = elm.childNodes, i = 0, rv = [], e;
-        while (e = list[i++]) {
+        var list = elm.childNodes, i = 0, iz = list.length, rv = [], e;
+        for (; i<iz; i++) {
+            e = list[i];
             if (e.nodeType === Node.ELEMENT_NODE) {
                 rv.push(e);
                 if (r && e.childNodes) {
