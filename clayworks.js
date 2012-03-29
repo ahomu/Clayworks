@@ -2196,17 +2196,20 @@
 
     /**
      * 指定した要素のtextContentをgetまたはsetする
+     * IE6-8かつSCRIPT要素であれば、innerHTMLを優先して参照する
+     * @see http://d.hatena.ne.jp/cou929_la/20110517/1305644081
+     * @see http://clubajax.org/plain-text-vs-innertext-vs-textcontent/
      *
      * @param {Node}   elm
      * @param {String} txt
      * @return {String}
      */
-    // @todo issue: ネストした要素のテキストノードがtextContentだと連結されてるような
     function ElementText(elm, txt) {
         if (txt !== void 0) {
             return ENV.IE678 ? elm.innerText = txt : elm.textContent = txt;
         } else {
-            return ENV.IE678 ? elm.innerText : elm.textContent;
+            return ENV.IE678 ? (elm.tagName === 'SCRIPT' ? elm.innerHTML : elm.innerText)
+                             : elm.textContent;
         }
     }
 
@@ -2844,7 +2847,7 @@
         function _jsonpClosure(json) {
             callback(json);
             HEAD.removeChild(script);
-            delete window[callbackname];
+            window[callbackname] = null;
         }
         window[callbackname] = _jsonpClosure;
 
