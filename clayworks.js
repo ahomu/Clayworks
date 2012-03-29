@@ -192,7 +192,7 @@
 
             for (; i<iz; i++) {
                 test = scripts[i].src.replace(isClay, '');
-                if (test !== scripts[i]) {
+                if (test !== scripts[i].src) {
                     return test;
                 }
             }
@@ -1514,7 +1514,7 @@
         r.detach();
         return tub.innerHTML;
     }
-    if ( ENV.FIREFOX && !HTMLElement.prototype.outerHTML ) {
+    if ( ENV.FIREFOX && !'outerHTML' in HTMLElement.prototype ) {
         HTMLElement.prototype.__defineGetter__('outerHTML', AdaptiveOuterHTML);
     }
     // -moz@
@@ -1563,8 +1563,17 @@
 
                 // リスナーターゲット
                 event.currentTarget = target;
+
                 // リレイテッドターゲット
-                event.relatedTarget = event.fromElement || event.toElement;
+                if ('mouseover' === type) {
+                    event.relatedTarget = event.fromElement;
+                }
+                else if ('mouseout' === type) {
+                    event.relatedTarget = event.toElement;
+                }
+//                else {
+//                    event.relatedTarget = event.fromElement || event.toElement;
+//                }
 
                 // button -> which
                 event.which = event.button === 1 ? 1 :
@@ -2155,7 +2164,7 @@
             var rv = 'dataset' in elm ? elm.dataset[key]
                                       : elm.getAttribute('data-'+key.decamelize());
 
-            if (rv.indexOf('__ident-') === 0) {
+            if (rv !== null && rv !== void 0 && rv.indexOf('__ident-') === 0) {
                 rv = elm[RESERVED_DATASET_STORE][rv];
             }
             return rv;
